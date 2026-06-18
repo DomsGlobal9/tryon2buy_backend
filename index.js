@@ -23,7 +23,8 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',   // alternate dev port
   'http://localhost:4000',   // same-origin requests
   'https://tryon2buy.com',   // production frontend
-  'https://www.tryon2buy.com'// production frontend (www)
+  'https://www.tryon2buy.com',// production frontend (www)
+  'https://tryon2buy-frontend.vercel.app' // Vercel deployment
 ];
 app.use(cors({
   origin: (origin, callback) => {
