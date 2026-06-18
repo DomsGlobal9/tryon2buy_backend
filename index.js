@@ -58,17 +58,6 @@ app.get('/api/tryon/health', (req, res) => {
 app.use('/', tryonRoutes);
 app.use('/', externalRoutes);
 
-// ── Serve Frontend (Production Mode) ──────────────────────────────────────────
-const frontendDistPath = path.join(__dirname, '../frontend/dist');
-app.use(express.static(frontendDistPath));
-
-app.use((req, res, next) => {
-  if (req.method === 'GET' && !req.path.startsWith('/api')) {
-    res.sendFile(path.join(frontendDistPath, 'index.html'));
-  } else {
-    next();
-  }
-});
 
 // ── Start Server ─────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
