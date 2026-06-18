@@ -78,7 +78,7 @@ const NECK_MODIFICATION_PROMPTS = {
   'regular-neck': {
     name: 'Regular Neck',
     imageUrl: '/assets/neck/normal_neck.png',
-    prompt: `Change the neckline of this garment to a wide, deep curved V-neck style (similar to a sweetheart neckline but ending in a V). The neckline should be wide across the collarbones and dip down to meet a front-open button placket in the center. Keep all other aspects of the garment, including the sleeves and main bodice, exactly the same.`
+    prompt: `Change the neckline of this garment to a Classic Round Neck style. Keep everything else exactly the same.`
   },
   'round-neck': {
     name: 'Round Neck',
