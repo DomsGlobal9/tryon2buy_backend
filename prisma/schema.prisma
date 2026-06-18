@@ -1,0 +1,166 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider     = "prisma-client-js"
+  moduleFormat = "cjs"
+}
+
+// ─── 1. MERCHANT (who sells clothes) ───
+model Vendor {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String     @default("") @map("password_hash")
+  name         String?
+  storeName    String?    @map("store_name")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  garments    Garment[]
+  generations TryonGeneration[]
+
+  @@map("tryon_vendors")
+}
+
+// ─── 2. CUSTOMER (who tries on clothes) ───
+model Customer {
+  id          String     @id @default(uuid())
+  email       String?    @unique
+  name        String     @default("")
+  phone       String     @unique @default("")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  portraits   CustomerPortrait[]
+  generations TryonGeneration[]
+  savedLooks  SavedLook[]
+
+  @@map("tryon_customers")
+}
+
+// ─── 3. CUSTOMER PORTRAITS (their uploaded photos) ───
+model CustomerPortrait {
+  id          String     @id @default(uuid())
+  customerId  String     @map("customer_id")
+  customer    Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  imageUrl    String     @map("image_url")
+  label       String?    // "Front View", "Full Body", etc.
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  generations TryonGeneration[]
+
+  @@map("tryon_customer_portraits")
+}
+
+// ─── 4. GARMENT (the clothing item) ───
+model Garment {
+  id          String          @id @default(uuid())
+  vendorId    String          @map("vendor_id")
+  vendor      Vendor          @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  label       String?
+  category    String?         // SAREE, LEHANGA, ANARKALI, KURTHI, SHARARA
+  status      String          @default("PENDING") // PENDING | READY | FAILED
+  metadata    Json?
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  pieces      GarmentPiece[]  // ← Multi-piece support
+  generations TryonGeneration[]
+
+  @@map("tryon_garments")
+}
+
+// ─── 5. GARMENT PIECES (individual fabric uploads) ───
+model GarmentPiece {
+  id          String   @id @default(uuid())
+  garmentId   String   @map("garment_id")
+  garment     Garment  @relation(fields: [garmentId], references: [id], onDelete: Cascade)
+  slotKey     String   @map("slot_key")  // "saree", "blouse", "full", "top", "bottom", "back"
+  imageUrl    String   @map("image_url")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([garmentId, slotKey])
+  @@map("tryon_garment_pieces")
+}
+
+// ─── 6. DEFAULT MODELS (professional AI models, NOT customers) ───
+model DefaultModel {
+  id          String   @id @default(uuid())
+  name        String   // "Classic Studio", "Heritage Court", etc.
+  imageUrl    String   @map("image_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  generations TryonGeneration[]
+
+  @@map("tryon_default_models")
+}
+
+// ─── 7. TRY-ON GENERATION (the AI result) ───
+model TryonGeneration {
+  id                 String            @id @default(uuid())
+
+  // WHO triggered it
+  vendorId           String?           @map("vendor_id")
+  vendor             Vendor?           @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  customerId         String?           @map("customer_id")
+  customer           Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  // WHAT was used
+  garmentId          String?           @map("garment_id")
+  garment            Garment?          @relation(fields: [garmentId], references: [id], onDelete: SetNull)
+  defaultModelId     String?           @map("default_model_id")
+  defaultModel       DefaultModel?     @relation(fields: [defaultModelId], references: [id], onDelete: SetNull)
+  customerPortraitId String?           @map("customer_portrait_id")
+  customerPortrait   CustomerPortrait? @relation(fields: [customerPortraitId], references: [id], onDelete: SetNull)
+
+  // FLOW INFO
+  mode               String            @default("with_garment") @map("mode")
+  phase              Int               @default(1) // 1 or 2
+  parentGenerationId String?           @map("parent_generation_id")
+  parentGeneration   TryonGeneration?  @relation("GenerationChain", fields: [parentGenerationId], references: [id])
+  childGenerations   TryonGeneration[] @relation("GenerationChain")
+
+  category           String?
+  catalogProductId   String?           @map("catalog_product_id")
+
+  // IMAGES
+  garmentImageUrl    String            @map("garment_image_url")
+  humanImageUrl      String            @map("human_image_url")
+  resultImageUrl     String?           @map("result_image_url")
+
+  // AI TRACKING
+  promptUsed         String?           @map("prompt_used") @db.Text
+  aiModelVersion     String?           @map("ai_model_version")
+  processingTimeMs   Int?              @map("processing_time_ms")
+
+  // STATUS
+  status             String            @default("PENDING")
+  errorMessage       String?           @map("error_message")
+  isMock             Boolean           @default(false) @map("is_mock")
+  metadata           Json?
+
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  savedLooks         SavedLook[]
+
+  @@map("tryon_generations")
+}
+
+// ─── 8. SAVED LOOKS (customer favorites) ───
+model SavedLook {
+  id           String          @id @default(uuid())
+  customerId   String          @map("customer_id")
+  customer     Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  generationId String          @map("generation_id")
+  generation   TryonGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  note         String?
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  @@unique([customerId, generationId])
+  @@map("tryon_saved_looks")
+}
