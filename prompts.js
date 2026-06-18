@@ -75,14 +75,14 @@ const NECK_MODIFICATION_PROMPTS = {
     imageUrl: '/assets/neck/boat_neck.png',
     prompt: `Change the neckline of this garment to a Boat Neck style. Keep everything else exactly the same.`
   },
-  'regular-neck': {
-    name: 'Regular Neck',
-    imageUrl: '/assets/neck/normal_neck.png',
-    prompt: `Change the neckline of this garment to a Classic Round Neck style. Keep everything else exactly the same.`
-  },
   'round-neck': {
     name: 'Round Neck',
     imageUrl: '/assets/neck/round_neck.png',
+    prompt: `Change the neckline of this garment to a Classic Round Neck style. Keep everything else exactly the same.`
+  },
+  'collar-neck': {
+    name: 'Collar Neck',
+    imageUrl: '/assets/neck/collar_neck.png',
     prompt: `Change the neckline of this garment to a High Round Neck (Mandarin Collar) style with a small keyhole opening at the back. Keep everything else exactly the same.`
   }
 };
