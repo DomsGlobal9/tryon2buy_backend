@@ -16,6 +16,8 @@ model Vendor {
   storeName    String?    @map("store_name")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
+  tryonCredits Int        @default(5) @map("tryon_credits")
+  isUnlimited  Boolean    @default(false) @map("is_unlimited")
 
   garments    Garment[]
   generations TryonGeneration[]
@@ -29,8 +31,10 @@ model Customer {
   email       String?    @unique
   name        String     @default("")
   phone       String     @unique @default("")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  tryonCredits Int        @default(5) @map("tryon_credits")
+  isUnlimited  Boolean    @default(false) @map("is_unlimited")
 
   portraits   CustomerPortrait[]
   generations TryonGeneration[]
@@ -163,4 +167,15 @@ model SavedLook {
 
   @@unique([customerId, generationId])
   @@map("tryon_saved_looks")
+}
+
+// ─── 9. GUEST LIMITS (unauthenticated users) ───
+model GuestLimit {
+  id         String   @id @default(uuid())
+  ipAddress  String   @unique @map("ip_address")
+  tryonCount Int      @default(0) @map("tryon_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("tryon_guest_limits")
 }

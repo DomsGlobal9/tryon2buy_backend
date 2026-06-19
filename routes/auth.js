@@ -40,6 +40,8 @@ router.post('/vendor/register', async (req, res) => {
         email: vendor.email,
         name: vendor.name,
         storeName: vendor.storeName,
+        tryonCredits: vendor.tryonCredits,
+        isUnlimited: vendor.isUnlimited,
       },
     });
   } catch (err) {
@@ -77,6 +79,8 @@ router.post('/vendor/login', async (req, res) => {
         email: vendor.email,
         name: vendor.name,
         storeName: vendor.storeName,
+        tryonCredits: vendor.tryonCredits,
+        isUnlimited: vendor.isUnlimited,
       },
     });
   } catch (err) {
@@ -124,6 +128,8 @@ router.post('/customer/login', async (req, res) => {
         id: customer.id,
         name: customer.name,
         phone: customer.phone,
+        tryonCredits: customer.tryonCredits,
+        isUnlimited: customer.isUnlimited,
       },
     });
   } catch (err) {

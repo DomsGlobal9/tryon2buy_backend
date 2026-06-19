@@ -6,7 +6,7 @@ const {
   changeBackgroundWithGemini, 
   modifyOutfitWithGemini 
 } = require('../pipeline');
-const { authenticateVendor, authenticateCustomer, authenticateUser } = require('../middleware/auth');
+const { authenticateVendor, authenticateCustomer, authenticateUser, optionalAuthenticateUser } = require('../middleware/auth');
 const prisma = require('../lib/prisma');
 const upload = require('../lib/upload');
 
@@ -116,7 +116,7 @@ router.post('/api/tryon/generate-front-view', authenticateVendor, async (req, re
 //    }
 //    Returns: { generation_id, result_image_url, is_mock }
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/api/tryon/generate', authenticateUser, async (req, res) => {
+router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) => {
   try {
     const {
       mode = 'with_garment',
@@ -135,6 +135,57 @@ router.post('/api/tryon/generate', authenticateUser, async (req, res) => {
     if (!['with_garment', 'without_garment'].includes(mode)) {
       return res.status(400).json({ error: 'mode must be "with_garment" or "without_garment".' });
     }
+
+    // --- CREDIT LIMIT LOGIC ---
+    if (req.userRole === 'vendor') {
+      const vendor = await prisma.vendor.findUnique({ where: { id: req.vendorId } });
+      if (!vendor) {
+        return res.status(401).json({ error: 'Vendor not found.' });
+      }
+      if (!vendor.isUnlimited) {
+        if (vendor.tryonCredits <= 0) {
+          return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your 5 free try-ons. Please Contact Us to subscribe.' });
+        }
+        // Decrement credit
+        await prisma.vendor.update({
+          where: { id: req.vendorId },
+          data: { tryonCredits: vendor.tryonCredits - 1 }
+        });
+      }
+    } else if (req.userRole === 'customer') {
+      const customer = await prisma.customer.findUnique({ where: { id: req.customerId } });
+      if (!customer) {
+        return res.status(401).json({ error: 'Customer not found.' });
+      }
+      if (!customer.isUnlimited) {
+        if (customer.tryonCredits <= 0) {
+          return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your 5 free try-ons. Please Contact Us to subscribe.' });
+        }
+        // Decrement credit
+        await prisma.customer.update({
+          where: { id: req.customerId },
+          data: { tryonCredits: customer.tryonCredits - 1 }
+        });
+      }
+    } else if (req.userRole === 'guest') {
+      const ip = req.ip || req.connection.remoteAddress || 'unknown';
+      let guest = await prisma.guestLimit.findUnique({ where: { ipAddress: ip } });
+      if (!guest) {
+        guest = await prisma.guestLimit.create({ data: { ipAddress: ip, tryonCount: 0 } });
+      }
+      
+      if (guest.tryonCount >= 1) {
+        return res.status(401).json({ error: 'GUEST_LIMIT_REACHED', message: 'You have used your free try-on. Please sign up to continue.' });
+      }
+      
+      // Increment guest tryon count
+      await prisma.guestLimit.update({
+        where: { id: guest.id },
+        data: { tryonCount: guest.tryonCount + 1 }
+      });
+    }
+    // Note: If req.userRole === 'vendor', they bypass this and get unlimited.
+    // --- END CREDIT LIMIT LOGIC ---
 
     let primaryGarmentUrl = garment_image_url;
     let garmentUrlsObj = null;
@@ -158,7 +209,7 @@ router.post('/api/tryon/generate', authenticateUser, async (req, res) => {
     // Create TryonGeneration record with status PROCESSING
     const generation = await prisma.tryonGeneration.create({
       data: {
-        vendorId: req.userRole === 'vendor' ? req.vendorId : (req.body.vendorId || DEFAULT_VENDOR_ID),
+        vendorId: req.userRole === 'vendor' ? req.vendorId : (req.body.vendorId || null),
         customerId: req.userRole === 'customer' ? req.customerId : null,
         garmentId: garment_id || null,
         mode,
@@ -243,10 +294,16 @@ router.get('/api/tryon/generations', authenticateCustomer, async (req, res) => {
 // ─── Vendor specific generation library ───
 router.get('/api/tryon/vendor/generations', authenticateVendor, async (req, res) => {
   try {
+    const masterVendor = await prisma.vendor.findUnique({ where: { email: 'vendor@store.com' } });
+    const vendorIds = [req.vendorId];
+    if (masterVendor && masterVendor.id !== req.vendorId) {
+      vendorIds.push(masterVendor.id);
+    }
+
     const generations = await prisma.tryonGeneration.findMany({
-      where: { vendorId: req.vendorId },
+      where: { vendorId: { in: vendorIds } },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: 100,
       include: {
         garment: { select: { id: true, label: true, category: true, metadata: true } },
       },
@@ -340,9 +397,16 @@ router.delete('/api/tryon/vendor/generations/:id', authenticateVendor, async (re
 router.get('/api/tryon/vendor/:vendorId/gallery', async (req, res) => {
   try {
     const { vendorId } = req.params;
+    
+    const masterVendor = await prisma.vendor.findUnique({ where: { email: 'vendor@store.com' } });
+    const vendorIds = [vendorId];
+    if (masterVendor && masterVendor.id !== vendorId) {
+      vendorIds.push(masterVendor.id);
+    }
+
     const generations = await prisma.tryonGeneration.findMany({
       where: {
-        vendorId,
+        vendorId: { in: vendorIds },
         mode: 'with_garment',
         phase: 1,
         status: { not: 'FAILED' },
@@ -383,6 +447,22 @@ router.post('/api/tryon/change-background', authenticateCustomer, async (req, re
   }
 
   try {
+    // --- CREDIT LIMIT LOGIC ---
+    const customer = await prisma.customer.findUnique({ where: { id: req.customerId } });
+    if (!customer) {
+      return res.status(401).json({ error: 'Customer not found.' });
+    }
+    if (!customer.isUnlimited) {
+      if (customer.tryonCredits <= 0) {
+        return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your free try-ons. Please subscribe for unlimited access.' });
+      }
+      await prisma.customer.update({
+        where: { id: req.customerId },
+        data: { tryonCredits: customer.tryonCredits - 1 }
+      });
+    }
+    // --- END CREDIT LIMIT LOGIC ---
+
     console.log(`[ChangeBackground] Starting for ${generationId || 'unknown'} → ${bg.name}`);
     
     // 1. Download source image (person) to base64
@@ -433,6 +513,22 @@ router.post('/api/tryon/modify-outfit', authenticateCustomer, async (req, res) =
   }
 
   try {
+    // --- CREDIT LIMIT LOGIC ---
+    const customer = await prisma.customer.findUnique({ where: { id: req.customerId } });
+    if (!customer) {
+      return res.status(401).json({ error: 'Customer not found.' });
+    }
+    if (!customer.isUnlimited) {
+      if (customer.tryonCredits <= 0) {
+        return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your free try-ons. Please subscribe for unlimited access.' });
+      }
+      await prisma.customer.update({
+        where: { id: req.customerId },
+        data: { tryonCredits: customer.tryonCredits - 1 }
+      });
+    }
+    // --- END CREDIT LIMIT LOGIC ---
+
     console.log(`[ModifyOutfit] Starting for ${generationId || 'unknown'} → ${mod.name}`);
     
     // 1. Download source image to base64

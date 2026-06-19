@@ -64,9 +64,35 @@ function authenticateUser(req, res, next) {
   }
 }
 
+function optionalAuthenticateUser(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    req.userRole = 'guest';
+    return next();
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.role === 'vendor') {
+      req.vendorId = decoded.vendorId;
+      req.userRole = 'vendor';
+    } else if (decoded.role === 'customer') {
+      req.customerId = decoded.customerId;
+      req.userRole = 'customer';
+    } else {
+      req.userRole = 'guest';
+    }
+  } catch (err) {
+    req.userRole = 'guest';
+  }
+  next();
+}
+
 module.exports = {
   authenticateVendor,
   authenticateCustomer,
   authenticateUser,
+  optionalAuthenticateUser,
   JWT_SECRET,
 };

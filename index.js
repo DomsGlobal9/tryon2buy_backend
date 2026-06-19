@@ -14,6 +14,7 @@ const externalRoutes = require('./routes/external.routes');
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 4000;
 
 // CORS: Allow specific origins (our frontends + any future domains)
