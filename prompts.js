@@ -13,7 +13,7 @@ const BACKGROUND_PROMPTS = {
   bg1: {
     name: 'Ancient Temple',
     imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg1.png',
-    prompt: `Place the person in the ancient temple setting. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the central stone pathway. Match warm golden lighting, natural shadows, and cinematic atmosphere. Preserve all facial features, pose, and outfit details exactly. Do not alter clothing colors or textures.`
+    prompt: `Place the person in a serene marble temple hallway. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the stone floor. Match warm sunlight casting geometric shadows, hanging pink floral vines, brass oil lamps, and a view of a white temple dome through an archway. Preserve all facial features, pose, and outfit details exactly. Do not alter clothing colors or textures.`
   },
   bg2: {
     name: 'Festive Palace',
@@ -29,6 +29,26 @@ const BACKGROUND_PROMPTS = {
     name: 'Hotel Lobby',
     imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg4.png',
     prompt: `Place the person in the luxury hotel lobby. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the marble walkway. Match elegant warm lighting, floor reflections, and premium fashion campaign aesthetics. Preserve all facial and clothing details exactly. Do not alter clothing colors or textures.`
+  },
+  bg5: {
+    name: 'Floral Archway',
+    imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg5.jpg',
+    prompt: `Place the person under a beautiful arched Mughal-style corridor. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the intricately patterned tiled floor. Match the warm natural lighting, painted floral wall frescoes, hanging brass lanterns, and lush pink bougainvillea flowers framing the entrance. Preserve all facial features, pose, and outfit details exactly. Do not alter clothing colors or textures.`
+  },
+  bg6: {
+    name: 'Golden Palace',
+    imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg6.jpg',
+    prompt: `Place the person in a grand, opulent golden palace hall. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the highly reflective polished marble floor. Match the luxurious golden lighting from the massive crystal chandelier, ornate arches, and golden pillars. Preserve all facial features, pose, and outfit details exactly. Do not alter clothing colors or textures.`
+  },
+  bg7: {
+    name: 'Tropical Garden',
+    imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg7.jpg',
+    prompt: `Place the person on a serene tropical garden path. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the carved stone walkway. Match the lush green outdoor lighting, surrounding palm trees, mango trees with hanging fruit, and vibrant green grass. Preserve all facial features, pose, and outfit details exactly. Do not alter clothing colors or textures.`
+  },
+  bg8: {
+    name: 'Beach Resort',
+    imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg8.png',
+    prompt: `Place the person at a luxurious tropical beach resort. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the light stone pathway beside the sandy beach. Match the bright, sunny outdoor lighting, turquoise ocean water in the background, palm trees casting shadows, and the wooden thatched-roof structure on the right. Preserve all facial features, pose, and outfit details exactly. Do not alter clothing colors or textures.`
   }
 };
 
