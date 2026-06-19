@@ -159,7 +159,7 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
       }
       if (!customer.isUnlimited) {
         if (customer.tryonCredits <= 0) {
-          return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your 5 free try-ons. Please Contact Us to subscribe.' });
+          return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your free try-on. Please Contact Us to subscribe.' });
         }
         // Decrement credit
         await prisma.customer.update({
@@ -454,7 +454,7 @@ router.post('/api/tryon/change-background', authenticateCustomer, async (req, re
     }
     if (!customer.isUnlimited) {
       if (customer.tryonCredits <= 0) {
-        return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your free try-ons. Please subscribe for unlimited access.' });
+        return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your free try-on. Please Contact Us to subscribe.' });
       }
       await prisma.customer.update({
         where: { id: req.customerId },
@@ -520,7 +520,7 @@ router.post('/api/tryon/modify-outfit', authenticateCustomer, async (req, res) =
     }
     if (!customer.isUnlimited) {
       if (customer.tryonCredits <= 0) {
-        return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your free try-ons. Please subscribe for unlimited access.' });
+        return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your free try-on. Please Contact Us to subscribe.' });
       }
       await prisma.customer.update({
         where: { id: req.customerId },

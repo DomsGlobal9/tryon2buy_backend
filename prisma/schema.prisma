@@ -33,7 +33,7 @@ model Customer {
   phone       String     @unique @default("")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
-  tryonCredits Int        @default(5) @map("tryon_credits")
+  tryonCredits Int        @default(1) @map("tryon_credits")
   isUnlimited  Boolean    @default(false) @map("is_unlimited")
 
   portraits   CustomerPortrait[]
