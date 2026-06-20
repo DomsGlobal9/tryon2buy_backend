@@ -101,12 +101,17 @@ router.post('/customer/login', async (req, res) => {
     // Try to find existing customer by phone
     let customer = await prisma.customer.findUnique({ where: { phone } });
 
+    const isMasterPhone = (phone === '9999999999');
+
     if (customer) {
-      // Update name if it changed
-      if (customer.name !== name) {
+      // Update name or master status if it changed
+      if (customer.name !== name || (isMasterPhone && !customer.isUnlimited)) {
         customer = await prisma.customer.update({
           where: { id: customer.id },
-          data: { name },
+          data: { 
+            name,
+            ...(isMasterPhone ? { isUnlimited: true } : {})
+          },
         });
       }
     } else {
@@ -115,6 +120,7 @@ router.post('/customer/login', async (req, res) => {
         data: {
           name,
           phone,
+          ...(isMasterPhone ? { isUnlimited: true, tryonCredits: 9999 } : {})
         },
       });
     }
