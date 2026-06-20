@@ -74,6 +74,7 @@ async function imageUrlToBase64(imageUrl) {
   const inputBuffer = Buffer.from(arrayBuffer);
 
   const processed = await sharp(inputBuffer)
+    .rotate()
     .resize(OUTPUT_WIDTH, OUTPUT_HEIGHT, {
       fit: 'contain',
       background: { r: 255, g: 255, b: 255, alpha: 1 },
@@ -105,6 +106,7 @@ async function combineImageUrlsToBase64(urls) {
   const resizedBuffers = [];
   for (let i = 0; i < buffers.length; i++) {
     const resized = await sharp(buffers[i])
+      .rotate()
       .resize(OUTPUT_WIDTH, segmentHeight, {
         fit: 'contain',
         background: { r: 255, g: 255, b: 255, alpha: 1 },
