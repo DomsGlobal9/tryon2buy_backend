@@ -211,7 +211,7 @@ async function changeBackgroundWithGemini(personBase64, targetBgBase64, prompt) 
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set in .env');
 
-  const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent";
+  const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent";
 
   // ── STEP 1: Pre-composite at fixed depth using Sharp (deterministic) ──────
   console.log('[Background Swap] Pre-compositing person at fixed depth with Sharp...');
@@ -251,7 +251,7 @@ async function changeBackgroundWithGemini(personBase64, targetBgBase64, prompt) 
   const resizeToJpegBase64 = async (buf, maxDim = 1024) => {
     const out = await sharp(buf)
       .resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 80 })
+      .jpeg({ quality: 90 })
       .toBuffer();
     return out.toString('base64');
   };
@@ -272,18 +272,22 @@ async function changeBackgroundWithGemini(personBase64, targetBgBase64, prompt) 
   - Blend the edges of the person naturally into the scene (no hard cutout edges)
   - Add subtle ambient light spill from the environment onto the clothing
   - The person's identity, features, pose, clothing, and colors must remain exactly identical — only lighting changes are allowed
+  You are a professional fashion editor modifying specific features of an outfit (e.g., sleeves, neckline).
+
+  YOUR TASK:
+  Modify ONLY the requested aspect of the garment. The human model and the rest of the outfit must remain identical.
 
   ABSOLUTE RULES:
-  - DO NOT move or reposition the person
-  - DO NOT resize the person
-  - DO NOT change clothing colors, textures, or outfit in any way
-  - DO NOT alter the facial identity or silhouette
-  - DO NOT add text, watermarks, or borders
+  - DO NOT change the background in any way
+  - DO NOT alter the person's face, skin tone, or identity
+  - DO NOT change the color or pattern of the garment
+  - ONLY modify the targeted aspect (sleeves or neck)
+  - DO NOT blur or smooth the person's skin or fabric textures. Maintain ultra-sharp, photorealistic pixel clarity.
 
   ${prompt}
 
   OUTPUT
-  Return ONE high-resolution image with the person naturally lit in the scene, at the EXACT same position as in the input image.
+  Return ONLY ONE high-resolution image with the requested modification applied flawlessly and photorealistically. Ensure maximum photorealistic sharpness and completely avoid any AI 'smoothing' or 'painting' effect.
   `;
 
   const payload = {
@@ -472,22 +476,11 @@ async function modifyOutfitWithGemini(personBase64, prompt) {
 
   const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent";
 
-  // Augmented resize: tiny 1% crop + imperceptible brightness shift breaks Gemini's
-  // AI-generated image deepfake detection fingerprint that was causing IMAGE_OTHER blocks
   const resizeToJpegBase64 = async (base64Str, maxDim = 1024) => {
     const inputBuffer = Buffer.from(base64Str, 'base64');
-    const meta = await sharp(inputBuffer).metadata();
-    const cropPx = Math.max(1, Math.floor(Math.min(meta.width || 512, meta.height || 512) * 0.01));
     const outputBuffer = await sharp(inputBuffer)
-      .extract({
-        left: cropPx,
-        top: cropPx,
-        width: (meta.width || 512) - cropPx * 2,
-        height: (meta.height || 512) - cropPx * 2,
-      })
       .resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true })
-      .modulate({ brightness: 1.02, saturation: 0.98 })
-      .jpeg({ quality: 82 })
+      .jpeg({ quality: 90 })
       .toBuffer();
     return outputBuffer.toString('base64');
   };
@@ -511,9 +504,10 @@ async function modifyOutfitWithGemini(personBase64, prompt) {
   - The background, environment, lighting, and all other objects must remain strictly untouched.
   - The unedited portions of the garment must remain strictly untouched.
   - Ensure natural drape, realistic shadows, and seamless fabric transitions at the editing boundaries.
+  - DO NOT blur or smooth the person's skin or fabric textures. Maintain ultra-sharp, photorealistic pixel clarity.
 
   OUTPUT:
-  Return ONLY one single HIGH-QUALITY photorealistic edited image.
+  Return ONLY one single HIGH-QUALITY photorealistic edited image. Ensure maximum photorealistic sharpness and completely avoid any AI 'smoothing' or 'painting' effect.
   `;
   } else {
     fullPrompt = `
@@ -530,6 +524,7 @@ async function modifyOutfitWithGemini(personBase64, prompt) {
   • Identical posture: shoulder slope, garment silhouette, and posture — zero positional shift.
   • Identical drape: all fabric folds, pleat crispness, patterns, borders, and colors must remain identical.
   • Identical scene: lighting, shadows, background, and environment must remain exactly the same.
+  • DO NOT blur or smooth the person's skin or fabric textures. Maintain ultra-sharp, photorealistic pixel clarity.
 
   MODIFICATION INSTRUCTIONS
   ${prompt}
@@ -541,7 +536,7 @@ async function modifyOutfitWithGemini(personBase64, prompt) {
   • No change to overall garment silhouette beyond the requested modification
 
   OUTPUT
-  Return ONLY one single HIGH-QUALITY photorealistic edited image.
+  Return ONLY one single HIGH-QUALITY photorealistic edited image. Ensure maximum photorealistic sharpness and completely avoid any AI 'smoothing' or 'painting' effect.
   `;
   }
 
