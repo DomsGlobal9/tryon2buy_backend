@@ -40,7 +40,10 @@ router.post('/vendor/register', async (req, res) => {
         email: vendor.email,
         name: vendor.name,
         storeName: vendor.storeName,
-        tryonCredits: vendor.tryonCredits,
+        drapeCredits: vendor.drapeCredits,
+        userTryonCredits: vendor.userTryonCredits,
+        bgChangeCredits: vendor.bgChangeCredits,
+        blouseChangeCredits: vendor.blouseChangeCredits,
         isUnlimited: vendor.isUnlimited,
       },
     });
@@ -79,7 +82,10 @@ router.post('/vendor/login', async (req, res) => {
         email: vendor.email,
         name: vendor.name,
         storeName: vendor.storeName,
-        tryonCredits: vendor.tryonCredits,
+        drapeCredits: vendor.drapeCredits,
+        userTryonCredits: vendor.userTryonCredits,
+        bgChangeCredits: vendor.bgChangeCredits,
+        blouseChangeCredits: vendor.blouseChangeCredits,
         isUnlimited: vendor.isUnlimited,
       },
     });
@@ -89,59 +95,6 @@ router.post('/vendor/login', async (req, res) => {
   }
 });
 
-// ─── CUSTOMER LOGIN (PASSWORDLESS) ───
-router.post('/customer/login', async (req, res) => {
-  try {
-    const { name, phone } = req.body;
 
-    if (!name || !phone) {
-      return res.status(400).json({ error: 'Name and phone number are required.' });
-    }
-
-    // Try to find existing customer by phone
-    let customer = await prisma.customer.findUnique({ where: { phone } });
-
-    const isMasterPhone = (phone === '9999999999');
-
-    if (customer) {
-      // Update name or master status if it changed
-      if (customer.name !== name || (isMasterPhone && !customer.isUnlimited)) {
-        customer = await prisma.customer.update({
-          where: { id: customer.id },
-          data: { 
-            name,
-            ...(isMasterPhone ? { isUnlimited: true } : {})
-          },
-        });
-      }
-    } else {
-      // Create new customer
-      customer = await prisma.customer.create({
-        data: {
-          name,
-          phone,
-          ...(isMasterPhone ? { isUnlimited: true, tryonCredits: 9999 } : {})
-        },
-      });
-    }
-
-    const token = jwt.sign({ customerId: customer.id, role: 'customer' }, JWT_SECRET, { expiresIn: '30d' });
-
-    res.json({
-      success: true,
-      token,
-      customer: {
-        id: customer.id,
-        name: customer.name,
-        phone: customer.phone,
-        tryonCredits: customer.tryonCredits,
-        isUnlimited: customer.isUnlimited,
-      },
-    });
-  } catch (err) {
-    console.error('[Customer Login Error]', err);
-    res.status(500).json({ error: 'Failed to authenticate customer.' });
-  }
-});
 
 module.exports = router;

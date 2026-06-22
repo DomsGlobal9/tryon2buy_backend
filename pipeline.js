@@ -213,81 +213,41 @@ async function changeBackgroundWithGemini(personBase64, targetBgBase64, prompt) 
 
   const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent";
 
-  // ── STEP 1: Pre-composite at fixed depth using Sharp (deterministic) ──────
-  console.log('[Background Swap] Pre-compositing person at fixed depth with Sharp...');
-  
+  // ── STEP 1: Prepare Images (Use PNG to preserve colors perfectly) ──────
+  console.log('[Background Swap] Preparing images for Gemini...');
   const personBuffer = Buffer.from(personBase64, 'base64');
   const bgBuffer = Buffer.from(targetBgBase64, 'base64');
 
-  // Get background dimensions
-  const bgMeta = await sharp(bgBuffer).metadata();
-  const bgW = bgMeta.width || 1024;
-  const bgH = bgMeta.height || 1024;
-
-  // Scale person to exactly 72% of background height = "2 steps back" fixed depth
-  const personTargetH = Math.round(bgH * 0.72);
-
-  const personResized = await sharp(personBuffer)
-    .resize({ height: personTargetH, withoutEnlargement: false })
-    .jpeg({ quality: 90 })
-    .toBuffer();
-
-  const personMeta = await sharp(personResized).metadata();
-  const personW = personMeta.width || Math.round(personTargetH * 0.5);
-
-  // Center horizontally; feet land at 88% down the frame (mid-depth feel)
-  const left = Math.max(0, Math.round((bgW - personW) / 2));
-  const top = Math.max(0, Math.round(bgH * 0.88) - personTargetH);
-
-  const preComposited = await sharp(bgBuffer)
-    .composite([{ input: personResized, left, top }])
-    .jpeg({ quality: 88 })
-    .toBuffer();
-
-  const preCompositedB64 = preComposited.toString('base64');
-  console.log(`[Background Swap] Pre-composite done. Person placed at: left=${left}, top=${top}, size=${personW}x${personTargetH} on ${bgW}x${bgH} bg.`);
-
-  // ── STEP 2: Resize for Gemini payload limits ───────────────────────────────
-  const resizeToJpegBase64 = async (buf, maxDim = 1024) => {
+  const resizeToPngBase64 = async (buf, maxDim = 1024) => {
     const out = await sharp(buf)
       .resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 90 })
+      .png() // PNG prevents the color shifting caused by JPEG compression
       .toBuffer();
     return out.toString('base64');
   };
 
-  const compositedB64ForGemini = await resizeToJpegBase64(preComposited);
-  const bgB64ForGemini = await resizeToJpegBase64(bgBuffer);
+  const personB64ForGemini = await resizeToPngBase64(personBuffer);
+  const bgB64ForGemini = await resizeToPngBase64(bgBuffer);
 
-  // ── STEP 3: Ask Gemini ONLY for lighting/shadow/edge integration ───────────
+  // ── STEP 2: Ask Gemini to perform the extraction and composite ───────────
   const fullPrompt = `
-  ROLE
-  You are a professional photo editor performing final lighting integration.
+  ROLE: You are an expert AI photo compositor.
 
-  THE WORK IS ALREADY DONE: The person has already been composited into the scene at the correct position and scale. DO NOT move, resize, reposition, or change the scale of the person in any way.
+  TASK: 
+  Extract the person from Image 1 and composite them seamlessly onto the background provided in Image 2.
 
-  YOUR ONLY TASK — LIGHTING & EDGE INTEGRATION:
-  - Match the lighting direction and color temperature of the background scene onto the person
-  - Add a natural, soft ground shadow beneath the person's feet
-  - Blend the edges of the person naturally into the scene (no hard cutout edges)
-  - Add subtle ambient light spill from the environment onto the clothing
-  - The person's identity, features, pose, clothing, and colors must remain exactly identical — only lighting changes are allowed
-  You are a professional fashion editor modifying specific features of an outfit (e.g., sleeves, neckline).
+  CRITICAL RULES:
+  1. COMPLETELY REMOVE the original background/room from Image 1. Do NOT just paste the rectangular image.
+  2. The person's identity, face, skin tone, hands, body, and clothing MUST remain 100% IDENTICAL to Image 1.
+  3. DO NOT change the color, texture, or pattern of the garment or skin.
+  4. POSITIONING STRICT RULE: You MUST place the person perfectly centered horizontally. You MUST place them exactly two steps back from the nearest foreground point in the scene. The person's body must take up exactly 70% of the vertical height of the image. Do not make them too small or too large.
+  5. Add realistic ground shadows beneath their feet and blend the lighting smoothly so it looks like a real photograph.
 
-  YOUR TASK:
-  Modify ONLY the requested aspect of the garment. The human model and the rest of the outfit must remain identical.
-
-  ABSOLUTE RULES:
-  - DO NOT change the background in any way
-  - DO NOT alter the person's face, skin tone, or identity
-  - DO NOT change the color or pattern of the garment
-  - ONLY modify the targeted aspect (sleeves or neck)
-  - DO NOT blur or smooth the person's skin or fabric textures. Maintain ultra-sharp, photorealistic pixel clarity.
-
+  BACKGROUND DETAILS:
   ${prompt}
 
-  OUTPUT
-  Return ONLY ONE high-resolution image with the requested modification applied flawlessly and photorealistically. Ensure maximum photorealistic sharpness and completely avoid any AI 'smoothing' or 'painting' effect.
+  OUTPUT:
+  Return ONLY ONE high-resolution image with the person perfectly extracted and placed on the new background at the exact requested size and position. Ensure maximum photorealistic sharpness.
   `;
 
   const payload = {
@@ -295,17 +255,17 @@ async function changeBackgroundWithGemini(personBase64, targetBgBase64, prompt) 
       {
         parts: [
           { text: fullPrompt },
-          { text: "Pre-composited scene (person already placed at correct depth — DO NOT move them):" },
+          { text: "Image 1 (The Person to Extract):" },
           {
             inline_data: {
-              mime_type: "image/jpeg",
-              data: compositedB64ForGemini,
+              mime_type: "image/png",
+              data: personB64ForGemini,
             },
           },
-          { text: "Original background for lighting reference:" },
+          { text: "Image 2 (The Target Background):" },
           {
             inline_data: {
-              mime_type: "image/jpeg",
+              mime_type: "image/png",
               data: bgB64ForGemini,
             },
           },
