@@ -42,7 +42,7 @@ router.post('/api/external/tryon', requireApiKey, async (req, res) => {
     console.log(`[External API] Try-On request: category=${category || 'N/A'}`);
 
     // Call the same pipeline used by internal routes
-    const { resultImageUrl, is_mock } = await runTryOn(garmentImageUrl, humanImageUrl);
+    const { resultImageUrl, is_mock } = await runTryOn(garmentImageUrl, humanImageUrl, category);
 
     const processingTimeMs = Date.now() - startTime;
     console.log(`[External API] ✅ Try-On completed in ${processingTimeMs}ms`);

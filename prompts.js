@@ -177,6 +177,40 @@ function listNeckModifications() {
   }));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CATEGORY-SPECIFIC TRY-ON PROMPTS
+// Used by pipeline.js to inject perfect ethnic fashion vocabulary
+// ─────────────────────────────────────────────────────────────────────────────
+const CATEGORY_PROMPTS = {
+  'SAREE': `THE SAREE (from Saree Reference):
+Faithfully reproduce every detail of the saree draping. Preserve the complete pallu with its full length and natural fall over the shoulder, maintain every pleat at the waist with their exact crispness, and keep the precise wrapping pattern around the body. Transfer the exact color palette, weave pattern, embroidery, zari borders, and motifs — the fabric must be identical, not approximated.`,
+  
+  'LEHANGA': `THE LEHANGA SET (from Garment Reference):
+Faithfully reproduce the 3-piece Lehenga set. Preserve the exact volume, heavy flare, and pleating of the Lehenga skirt. Reproduce the exact cut, neckline, and sleeve length of the Choli (blouse). If a Dupatta is present in the reference, drape it exactly as shown across the shoulder or arms. Transfer the exact color palette, heavy embroidery, beadwork, and borders.`,
+  
+  'ANARKALI': `THE ANARKALI SUIT (from Garment Reference):
+Faithfully reproduce the Anarkali suit. Preserve the long, frock-style flared silhouette from the waist down, maintaining the exact fabric volume, weight, and drape. Reproduce the fitted bodice, neckline, and sleeves exactly. Preserve the churidar (bottoms) and replicate the exact placement of all embroidery, zari work, and borders.`,
+  
+  'SHARARA': `THE SHARARA SUIT (from Garment Reference):
+Faithfully reproduce the Sharara suit. It is critical to maintain the unique wide, flared, ruffled structure of the Sharara pants from the knee down. Preserve the exact length, side slits, and neckline of the Kurti (tunic). Replicate the Dupatta drape perfectly. Transfer the exact color palette, fabric texture, and intricate embroidery.`,
+  
+  'KURTHI': `THE KURTHI SET (from Garment Reference):
+Faithfully reproduce the Kurthi outfit. Preserve the exact length of the tunic, the depth of the side slits, the neckline, and the sleeve style. If bottoms (leggings, palazzos, or pants) or a dupatta are visible, reproduce them exactly. Transfer the exact fabric material, print patterns, and thread work.`,
+  
+  'DEFAULT': `THE OUTFIT (from Garment Reference):
+Faithfully reproduce every detail of the outfit. Preserve the exact silhouette, neckline, sleeve style, and pant/skirt structure. Transfer the exact color palette, weave pattern, and embroidery. The outfit must conform naturally to the customer's body without altering the customer's proportions.`
+};
+
+/**
+ * Get category specific try-on instructions
+ * @param {string} category 
+ */
+function getCategoryPrompt(category) {
+  if (!category) return CATEGORY_PROMPTS['DEFAULT'];
+  const normalizedCat = category.toUpperCase();
+  return CATEGORY_PROMPTS[normalizedCat] || CATEGORY_PROMPTS['DEFAULT'];
+}
+
 module.exports = {
   getBackground,
   getBlouseModification,
@@ -184,5 +218,6 @@ module.exports = {
   getOutfitModification,
   listBackgrounds,
   listBlouseModifications,
-  listNeckModifications
+  listNeckModifications,
+  getCategoryPrompt
 };
