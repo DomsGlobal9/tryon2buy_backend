@@ -180,7 +180,7 @@ router.post('/api/tryon/generate', authenticateUser, async (req, res) => {
     const tryOnPayload = garmentUrlsObj || primaryGarmentUrl;
     let result;
     try {
-      result = await runTryOn(tryOnPayload, human_image_url);
+      result = await runTryOn(tryOnPayload, human_image_url, category);
     } catch (pipelineErr) {
       // If AI fails, update record to FAILED
       await prisma.tryonGeneration.update({
@@ -340,9 +340,16 @@ router.delete('/api/tryon/vendor/generations/:id', authenticateVendor, async (re
 router.get('/api/tryon/vendor/:vendorId/gallery', async (req, res) => {
   try {
     const { vendorId } = req.params;
+    
+    const masterVendor = await prisma.vendor.findUnique({ where: { email: 'vendor@store.com' } });
+    const vendorIds = [vendorId];
+    if (vendorId === 'demo' && masterVendor) {
+      vendorIds.push(masterVendor.id);
+    }
+    
     const generations = await prisma.tryonGeneration.findMany({
       where: {
-        vendorId,
+        vendorId: { in: vendorIds },
         mode: 'with_garment',
         phase: 1,
         status: { not: 'FAILED' },
