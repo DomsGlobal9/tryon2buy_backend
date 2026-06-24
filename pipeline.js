@@ -369,7 +369,7 @@ async function changeBackgroundWithGemini(personBase64, targetBgBase64, prompt) 
   const personBuffer = Buffer.from(personBase64, 'base64');
   const bgBuffer = Buffer.from(targetBgBase64, 'base64');
 
-  const resizeToPngBase64 = async (buf, maxDim = 1024) => {
+  const resizeToPngBase64 = async (buf, maxDim = 2048) => {
     const out = await sharp(buf)
       .resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true })
       .png() // PNG prevents the color shifting caused by JPEG compression
@@ -605,17 +605,17 @@ async function modifyOutfitWithGemini(personBase64, prompt) {
 
   const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent";
 
-  const resizeToJpegBase64 = async (base64Str, maxDim = 1024) => {
+  const resizeToPngBase64 = async (base64Str, maxDim = 2048) => {
     const inputBuffer = Buffer.from(base64Str, 'base64');
     const outputBuffer = await sharp(inputBuffer)
       .resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 90 })
+      .png()
       .toBuffer();
     return outputBuffer.toString('base64');
   };
 
   console.log('[Gemini Outfit Modification] Pre-processing image...');
-  const personB64 = await resizeToJpegBase64(personBase64);
+  const personB64 = await resizeToPngBase64(personBase64);
 
   const isNeckModification = prompt.toLowerCase().includes('neckline') || prompt.toLowerCase().includes('neck style');
   
@@ -677,7 +677,7 @@ async function modifyOutfitWithGemini(personBase64, prompt) {
           { text: fullPrompt },
           {
             inline_data: {
-              mime_type: "image/jpeg",
+              mime_type: "image/png",
               data: personB64,
             },
           },

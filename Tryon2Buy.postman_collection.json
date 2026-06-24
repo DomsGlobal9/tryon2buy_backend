@@ -1,0 +1,191 @@
+{
+  "info": {
+    "name": "Tryon2Buy API",
+    "description": "API Registry for Tryon2Buy Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000" },
+    { "key": "vendorToken", "value": "" },
+    { "key": "apiKey", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Vendor Register",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/auth/vendor/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "vendor", "register"]},
+            "body": {"mode": "raw", "raw": "{\n  \"email\": \"test@store.com\",\n  \"password\": \"password123\",\n  \"name\": \"John Doe\",\n  \"storeName\": \"Test Store\"\n}"}
+          }
+        },
+        {
+          "name": "Vendor Login",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/auth/vendor/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "vendor", "login"]},
+            "body": {"mode": "raw", "raw": "{\n  \"email\": \"test@store.com\",\n  \"password\": \"password123\"\n}"}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Internal Try-On",
+      "item": [
+        {
+          "name": "Upload Image",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{vendorToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/tryon/upload?folder=human-images", "host": ["{{baseUrl}}"], "path": ["api", "tryon", "upload"], "query": [{"key": "folder", "value": "human-images"}]},
+            "body": {"mode": "formdata", "formdata": [{"key": "image", "type": "file", "src": []}]}
+          }
+        },
+        {
+          "name": "Generate Front View",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{vendorToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/tryon/generate-front-view", "host": ["{{baseUrl}}"], "path": ["api", "tryon", "generate-front-view"]},
+            "body": {"mode": "raw", "raw": "{\n  \"garment_image_url\": \"https://example.com/dress.jpg\",\n  \"category\": \"LEHENGA\"\n}"}
+          }
+        },
+        {
+          "name": "Generate Try-On",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{vendorToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/tryon/generate", "host": ["{{baseUrl}}"], "path": ["api", "tryon", "generate"]},
+            "body": {"mode": "raw", "raw": "{\n  \"mode\": \"with_garment\",\n  \"garment_image_url\": \"https://example.com/dress.jpg\",\n  \"human_image_url\": \"https://example.com/person.jpg\",\n  \"category\": \"LEHENGA\",\n  \"garment_id\": \"UUID_OPTIONAL\",\n  \"catalog_product_id\": \"UUID_OPTIONAL\",\n  \"front_view_url\": \"URL_OPTIONAL\",\n  \"parent_generation_id\": \"UUID_OPTIONAL\",\n  \"vendorId\": \"UUID_OPTIONAL\"\n}"}
+          }
+        },
+        {
+          "name": "Get Vendor Generations",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{vendorToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/tryon/vendor/generations", "host": ["{{baseUrl}}"], "path": ["api", "tryon", "vendor", "generations"]}
+          }
+        },
+        {
+          "name": "Get Generation By ID",
+          "request": {
+            "method": "GET",
+            "url": {"raw": "{{baseUrl}}/api/tryon/generations/:id", "host": ["{{baseUrl}}"], "path": ["api", "tryon", "generations", ":id"], "variable": [{"key": "id", "value": "UUID_HERE"}]}
+          }
+        },
+        {
+          "name": "Delete Vendor Generation",
+          "request": {
+            "method": "DELETE",
+            "header": [{"key": "Authorization", "value": "Bearer {{vendorToken}}"}],
+            "url": {"raw": "{{baseUrl}}/api/tryon/vendor/generations/:id", "host": ["{{baseUrl}}"], "path": ["api", "tryon", "vendor", "generations", ":id"], "variable": [{"key": "id", "value": "UUID_HERE"}]}
+          }
+        },
+        {
+          "name": "Get Vendor Gallery",
+          "request": {
+            "method": "GET",
+            "url": {"raw": "{{baseUrl}}/api/tryon/vendor/:vendorId/gallery", "host": ["{{baseUrl}}"], "path": ["api", "tryon", "vendor", ":vendorId", "gallery"], "variable": [{"key": "vendorId", "value": "UUID_HERE"}]}
+          }
+        },
+        {
+          "name": "Change Background",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{vendorToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/tryon/change-background", "host": ["{{baseUrl}}"], "path": ["api", "tryon", "change-background"]},
+            "body": {"mode": "raw", "raw": "{\n  \"imageUrl\": \"https://example.com/tryon_result.jpg\",\n  \"backgroundId\": 1,\n  \"generationId\": \"UUID_HERE\"\n}"}
+          }
+        },
+        {
+          "name": "Modify Outfit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{vendorToken}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/tryon/modify-outfit", "host": ["{{baseUrl}}"], "path": ["api", "tryon", "modify-outfit"]},
+            "body": {"mode": "raw", "raw": "{\n  \"imageUrl\": \"https://example.com/tryon_result.jpg\",\n  \"modificationType\": \"V-Neck\",\n  \"generationId\": \"UUID_HERE\"\n}"}
+          }
+        },
+        {
+          "name": "Get Catalog Dresses",
+          "request": {
+            "method": "GET",
+            "url": {"raw": "{{baseUrl}}/api/tryon/catalog-dresses", "host": ["{{baseUrl}}"], "path": ["api", "tryon", "catalog-dresses"]}
+          }
+        },
+        {
+          "name": "Get Default Models",
+          "request": {
+            "method": "GET",
+            "url": {"raw": "{{baseUrl}}/api/tryon/default-models", "host": ["{{baseUrl}}"], "path": ["api", "tryon", "default-models"]}
+          }
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": {"raw": "{{baseUrl}}/api/tryon/health", "host": ["{{baseUrl}}"], "path": ["api", "tryon", "health"]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "External API",
+      "item": [
+        {
+          "name": "External Try-On",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "x-api-key", "value": "{{apiKey}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/external/tryon", "host": ["{{baseUrl}}"], "path": ["api", "external", "tryon"]},
+            "body": {"mode": "raw", "raw": "{\n  \"garmentImageUrl\": \"https://example.com/dress.jpg\",\n  \"humanImageUrl\": \"https://example.com/person.jpg\",\n  \"category\": \"KURTHI\"\n}"}
+          }
+        },
+        {
+          "name": "External Change Background",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "x-api-key", "value": "{{apiKey}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/external/change-background", "host": ["{{baseUrl}}"], "path": ["api", "external", "change-background"]},
+            "body": {"mode": "raw", "raw": "{\n  \"imageUrl\": \"https://example.com/tryon_result.jpg\",\n  \"backgroundId\": 1\n}"}
+          }
+        },
+        {
+          "name": "External Modify Outfit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "x-api-key", "value": "{{apiKey}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "url": {"raw": "{{baseUrl}}/api/external/modify-outfit", "host": ["{{baseUrl}}"], "path": ["api", "external", "modify-outfit"]},
+            "body": {"mode": "raw", "raw": "{\n  \"imageUrl\": \"https://example.com/tryon_result.jpg\",\n  \"modificationType\": \"V-Neck\"\n}"}
+          }
+        }
+      ]
+    }
+  ]
+}
