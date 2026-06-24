@@ -10,3 +10,7 @@ npm-debug.log*
 # OS Files
 .DS_Store
 Thumbs.db
+
+# API Documentation
+EXTERNAL_API_DOCS.md
+Tryon2Buy.postman_collection.json
