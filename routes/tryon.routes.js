@@ -126,6 +126,7 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
       garment_id,
       catalog_product_id,
       front_view_url,
+      target_folder,
     } = req.body;
 
     if (!garment_image_url || !human_image_url) {
@@ -240,7 +241,7 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
     const tryOnPayload = garmentUrlsObj || primaryGarmentUrl;
     let result;
     try {
-      result = await runTryOn(tryOnPayload, human_image_url, category);
+      result = await runTryOn(tryOnPayload, human_image_url, category, target_folder || 'results/tryon-results');
     } catch (pipelineErr) {
       // If AI fails, update record to FAILED
       await prisma.asset.update({

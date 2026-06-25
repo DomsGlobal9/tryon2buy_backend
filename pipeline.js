@@ -536,7 +536,7 @@ async function generateFrontView(garmentImageUrl) {
  * @param {string} category - Category of the garment
  * @returns {object} { resultImageUrl, is_mock }
  */
-async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE') {
+async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targetFolder = 'results/tryon-results') {
   if (!garmentPayload || !humanImageUrl) {
     throw new Error('Missing required arguments: garmentPayload and humanImageUrl.');
   }
@@ -596,8 +596,8 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE') {
       resultB64 = await callVertexTryOn([combinedGarmentB64], personB64);
     }
 
-    console.log('[Pipeline] Uploading try-on result to Supabase...');
-    const resultImageUrl = await uploadBase64ToSupabase(resultB64, 'results/tryon-results');
+    console.log(`[Pipeline] Uploading try-on result to Supabase folder: ${targetFolder}...`);
+    const resultImageUrl = await uploadBase64ToSupabase(resultB64, targetFolder);
 
     console.log(`[Pipeline] ✅ Try-on result ready: ${resultImageUrl}`);
     return { resultImageUrl, is_mock: false };
