@@ -249,8 +249,9 @@ async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category
       ? `\nTHE BLOUSE (from Blouse Reference — separate image):
 A separate blouse image has been provided. Use the exact neckline shape, sleeve length, sleeve style, fabric texture, color, and embroidery from this Blouse Reference image. The blouse must be tailored to fit the customer's body naturally. Ignore any blouse visible in the Saree Reference — use ONLY the separately provided blouse design.\n`
       : `\nTHE BLOUSE (No separate image provided):
-If a blouse is clearly visible in the Saree Reference image, reproduce it exactly. 
-CRITICAL: If the Saree Reference is a flat lay, folded fabric, or a bare mannequin with NO blouse visible, you MUST design and generate an elegant, modest matching blouse (standard round neckline, half-sleeves) that perfectly complements the saree's colors and borders. The customer must not be bare; they must be fully dressed with a matching blouse.\n`;
+CRITICAL: Analyze the Saree Reference image carefully.
+1. IF A BLOUSE IS VISIBLE: You MUST copy its exact neckline, sleeve length, color, fabric texture, and embroidery. Do NOT redesign it. Do NOT invent new patterns. Reproduce the visible blouse with 100% pixel-perfect accuracy.
+2. IF NO BLOUSE IS VISIBLE (e.g. folded fabric flat-lay): You MUST generate a modest, matching blouse (standard round neckline, half-sleeves) that complements the saree. Do NOT leave the customer bare.\n`;
   }
 
   const fullPrompt = `You are a professional fashion photographer conducting a virtual fitting session for Indian ethnic wear. Your task is to dress the customer in the exact outfit from the reference, as if they walked into a fitting room and put it on.
@@ -516,7 +517,7 @@ async function generateFrontView(garmentImageUrl) {
     const resultB64 = await callVertexTryOn([combinedGarmentB64], modelB64);
 
     console.log('[Pipeline] Uploading front view to Supabase...');
-    const frontViewUrl = await uploadBase64ToSupabase(resultB64, 'front-views');
+    const frontViewUrl = await uploadBase64ToSupabase(resultB64, 'vendor-drapes');
 
     console.log(`[Pipeline] ✅ Front view ready: ${frontViewUrl}`);
     return { frontViewUrl, is_mock: false };
@@ -583,7 +584,7 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE') {
     console.log('[Pipeline] Calling Gemini 3.1 Flash Image for try-on...');
     const resultB64 = await callGeminiTryOn(garmentB64, personB64, blouseB64, category);
     console.log('[Pipeline] Uploading try-on result to Supabase...');
-    const resultImageUrl = await uploadBase64ToSupabase(resultB64, 'results');
+    const resultImageUrl = await uploadBase64ToSupabase(resultB64, 'results/tryon-results');
 
     console.log(`[Pipeline] ✅ Try-on result ready: ${resultImageUrl}`);
     return { resultImageUrl, is_mock: false };

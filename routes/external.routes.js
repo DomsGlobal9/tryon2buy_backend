@@ -98,7 +98,7 @@ router.post('/api/external/change-background', requireApiKey, async (req, res) =
     const resultB64 = await changeBackgroundWithGemini(personBase64, targetBgBase64, bg.prompt);
 
     // 4. Upload result to Supabase
-    const resultImageUrl = await uploadBase64ToSupabase(resultB64, 'results');
+    const resultImageUrl = await uploadBase64ToSupabase(resultB64, 'results/background-swaps');
 
     const processingTimeMs = Date.now() - startTime;
     console.log(`[External API] ✅ Background change completed in ${processingTimeMs}ms`);
@@ -148,7 +148,7 @@ router.post('/api/external/modify-outfit', requireApiKey, async (req, res) => {
     const resultB64 = await modifyOutfitWithGemini(personBase64, mod.prompt);
 
     // 3. Upload result to Supabase
-    const resultImageUrl = await uploadBase64ToSupabase(resultB64, 'results');
+    const resultImageUrl = await uploadBase64ToSupabase(resultB64, 'results/outfit-edits');
 
     const processingTimeMs = Date.now() - startTime;
     console.log(`[External API] ✅ Outfit modification completed in ${processingTimeMs}ms`);

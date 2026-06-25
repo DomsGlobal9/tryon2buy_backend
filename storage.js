@@ -1,11 +1,13 @@
 /**
  * storage.js — Supabase Storage upload utilities
  * 
- * Single bucket "tryon-fits" with folder organization:
- *   garments/{uuid}.jpg      — uploaded garment flat images
- *   front-views/{uuid}.jpg   — generated front views (garment on default model)
- *   human-images/{uuid}.jpg  — user-uploaded human/portrait images
- *   results/{uuid}.jpg       — final try-on output images
+ * Single bucket "tryon-fits" with hyper-organized folder structure:
+ *   garments/                       — uploaded garment flat images
+ *   vendor-drapes/{uuid}.jpg        — generated front views (garment on default model)
+ *   user-uploads/{uuid}.jpg         — user-uploaded human/portrait images
+ *   results/tryon-results/          — final try-on output images
+ *   results/background-swaps/       — background replacement images
+ *   results/outfit-edits/           — blouse/neck modification images
  */
 const { v4: uuidv4 } = require('uuid');
 const supabase = require('./supabaseClient');

@@ -26,7 +26,7 @@ router.post('/api/tryon/upload', upload.single('image'), async (req, res) => {
     }
 
     const folder = req.query.folder || 'garments';
-    const allowedFolders = ['garments', 'human-images', 'front-views', 'results'];
+    const allowedFolders = ['garments', 'user-uploads', 'vendor-drapes', 'results'];
     if (!allowedFolders.includes(folder)) {
       return res.status(400).json({ error: `Invalid folder. Use: ${allowedFolders.join(', ')}` });
     }
@@ -203,26 +203,38 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
     const parentGenId = req.body.parent_generation_id || null;
     const phase = parentGenId ? 2 : 1;
 
-    // Create TryonGeneration record with status PROCESSING
-    const generation = await prisma.tryonGeneration.create({
+    // Create Asset record with status PROCESSING
+    const asset = await prisma.asset.create({
       data: {
         vendorId: req.userRole === 'vendor' ? req.vendorId : (req.body.vendorId || null),
         customerId: null,
         garmentId: garment_id || null,
-        mode,
-        phase,
-        parentGenerationId: parentGenId,
-        catalogProductId: catalog_product_id || null,
-        category: category || null,
-        garmentImageUrl: primaryGarmentUrl,
-        humanImageUrl: human_image_url,
+        imageUrl: human_image_url, // Temporary until result is ready
+        assetType: mode === 'with_garment' ? 'TRYON_RESULT' : mode.toUpperCase(),
+        status: 'PROCESSING',
         metadata: {
+          mode,
+          phase,
+          parentGenerationId: parentGenId,
+          catalogProductId: catalog_product_id || null,
+          category: category || null,
+          garmentImageUrl: primaryGarmentUrl,
+          humanImageUrl: human_image_url,
           ...(garmentUrlsObj ? { garment_urls: garmentUrlsObj } : {}),
           ...(front_view_url ? { front_view_url } : {})
         },
-        status: 'PROCESSING',
       },
     });
+
+    if (parentGenId) {
+      await prisma.assetRelation.create({
+        data: {
+          parentAssetId: parentGenId,
+          childAssetId: asset.id,
+          action: mode.toUpperCase(),
+        }
+      });
+    }
 
     // Run virtual try-on pipeline
     const tryOnPayload = garmentUrlsObj || primaryGarmentUrl;
@@ -231,28 +243,27 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
       result = await runTryOn(tryOnPayload, human_image_url, category);
     } catch (pipelineErr) {
       // If AI fails, update record to FAILED
-      await prisma.tryonGeneration.update({
-        where: { id: generation.id },
+      await prisma.asset.update({
+        where: { id: asset.id },
         data: {
           status: 'FAILED',
-          errorMessage: pipelineErr.message,
+          metadata: { errorMessage: pipelineErr.message },
         },
       });
       throw pipelineErr;
     }
 
     // Update generation with result
-    await prisma.tryonGeneration.update({
-      where: { id: generation.id },
+    await prisma.asset.update({
+      where: { id: asset.id },
       data: {
-        resultImageUrl: result.resultImageUrl,
-        isMock: false,
+        imageUrl: result.resultImageUrl,
         status: 'COMPLETED',
       },
     });
 
     res.json({
-      generation_id: generation.id,
+      generation_id: asset.id,
       mode,
       garment_image_url,
       human_image_url,
@@ -277,14 +288,30 @@ router.get('/api/tryon/vendor/generations', authenticateVendor, async (req, res)
       vendorIds.push(masterVendor.id);
     }
 
-    const generations = await prisma.tryonGeneration.findMany({
-      where: { vendorId: { in: vendorIds } },
+    const assets = await prisma.asset.findMany({
+      where: { vendorId: { in: vendorIds }, assetType: 'TRYON_RESULT' },
       orderBy: { createdAt: 'desc' },
       take: 100,
       include: {
         garment: { select: { id: true, label: true, category: true, metadata: true } },
       },
     });
+
+    const generations = assets.map(a => ({
+      id: a.id,
+      vendorId: a.vendorId,
+      customerId: a.customerId,
+      garmentId: a.garmentId,
+      mode: a.metadata?.mode || 'with_garment',
+      phase: a.metadata?.phase || 1,
+      category: a.metadata?.category || null,
+      garmentImageUrl: a.metadata?.garmentImageUrl || '',
+      humanImageUrl: a.metadata?.humanImageUrl || '',
+      resultImageUrl: a.imageUrl,
+      status: a.status,
+      createdAt: a.createdAt,
+      garment: a.garment
+    }));
 
     res.json(generations);
   } catch (err) {
@@ -299,16 +326,32 @@ router.get('/api/tryon/vendor/generations', authenticateVendor, async (req, res)
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/api/tryon/generations/:id', async (req, res) => {
   try {
-    const generation = await prisma.tryonGeneration.findUnique({
+    const asset = await prisma.asset.findUnique({
       where: { id: req.params.id },
       include: {
         garment: true,
       },
     });
 
-    if (!generation) {
+    if (!asset) {
       return res.status(404).json({ error: 'Generation not found.' });
     }
+
+    const generation = {
+      id: asset.id,
+      vendorId: asset.vendorId,
+      customerId: asset.customerId,
+      garmentId: asset.garmentId,
+      mode: asset.metadata?.mode || 'with_garment',
+      phase: asset.metadata?.phase || 1,
+      category: asset.metadata?.category || null,
+      garmentImageUrl: asset.metadata?.garmentImageUrl || '',
+      humanImageUrl: asset.metadata?.humanImageUrl || '',
+      resultImageUrl: asset.imageUrl,
+      status: asset.status,
+      createdAt: asset.createdAt,
+      garment: asset.garment
+    };
 
     res.json(generation);
   } catch (err) {
@@ -320,15 +363,15 @@ router.get('/api/tryon/generations/:id', async (req, res) => {
 // ─── Vendor specific delete generation ───
 router.delete('/api/tryon/vendor/generations/:id', authenticateVendor, async (req, res) => {
   try {
-    const generation = await prisma.tryonGeneration.findUnique({
+    const asset = await prisma.asset.findUnique({
       where: { id: req.params.id },
     });
 
-    if (!generation || generation.vendorId !== req.vendorId) {
+    if (!asset || asset.vendorId !== req.vendorId) {
       return res.status(404).json({ error: 'Generation not found or unauthorized.' });
     }
 
-    await prisma.tryonGeneration.delete({
+    await prisma.asset.delete({
       where: { id: req.params.id },
     });
 
@@ -353,24 +396,23 @@ router.get('/api/tryon/vendor/:vendorId/gallery', async (req, res) => {
     if (vendorId === 'demo' && masterVendor) {
       vendorIds.push(masterVendor.id);
     }
-    const generations = await prisma.tryonGeneration.findMany({
+    const assets = await prisma.asset.findMany({
       where: {
         vendorId: { in: vendorIds },
-        mode: 'with_garment',
-        phase: 1,
+        assetType: 'TRYON_RESULT',
         status: { not: 'FAILED' },
-        resultImageUrl: { not: null },
       },
       orderBy: { createdAt: 'desc' },
       take: 100,
-      select: {
-        id: true,
-        category: true,
-        resultImageUrl: true,
-        garmentImageUrl: true,
-        createdAt: true,
-      },
     });
+
+    const generations = assets.map(a => ({
+      id: a.id,
+      category: a.metadata?.category || null,
+      resultImageUrl: a.imageUrl,
+      garmentImageUrl: a.metadata?.garmentImageUrl || '',
+      createdAt: a.createdAt,
+    }));
 
     res.json({ vendorId, generations });
   } catch (err) {
@@ -436,14 +478,36 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
 
     // 4. Upload to Supabase
     const { uploadBase64ToSupabase } = require('../storage');
-    const newImageUrl = await uploadBase64ToSupabase(resultB64, 'results');
+    const newImageUrl = await uploadBase64ToSupabase(resultB64, 'results/background-swaps');
 
-    // 5. Do NOT update the record in Prisma
-    // The background swap is intended for the customer's active session only.
-    // If we overwrite resultImageUrl, it ruins the Vendor Gallery.
-    // We just return the new URL to the frontend state.
+    // 5. Save Asset and AssetRelation for true Asset Lineage tracking
+    let newAsset = null;
+    if (generationId) {
+      const parentAsset = await prisma.asset.findUnique({ where: { id: generationId } });
+      if (parentAsset) {
+        newAsset = await prisma.asset.create({
+          data: {
+            vendorId: parentAsset.vendorId,
+            customerId: parentAsset.customerId,
+            garmentId: parentAsset.garmentId,
+            imageUrl: newImageUrl,
+            assetType: 'BG_SWAP_RESULT',
+            status: 'COMPLETED',
+            metadata: { backgroundId, originalSessionId: parentAsset.metadata?.originalSessionId || generationId }
+          }
+        });
+        await prisma.assetRelation.create({
+          data: {
+            parentAssetId: generationId,
+            childAssetId: newAsset.id,
+            action: 'BG_SWAP',
+            promptUsed: bg.prompt
+          }
+        });
+      }
+    }
 
-    res.json({ success: true, url: newImageUrl });
+    res.json({ success: true, url: newImageUrl, asset_id: newAsset?.id, generation_id: newAsset?.id });
   } catch (err) {
     console.error('[ChangeBackground] Error:', err.message);
     res.status(500).json({ error: err.message });
@@ -502,9 +566,36 @@ router.post('/api/tryon/modify-outfit', optionalAuthenticateUser, async (req, re
 
     // 3. Upload to Supabase
     const { uploadBase64ToSupabase } = require('../storage');
-    const newImageUrl = await uploadBase64ToSupabase(resultB64, 'results');
+    const newImageUrl = await uploadBase64ToSupabase(resultB64, 'results/outfit-edits');
 
-    res.json({ success: true, resultImageUrl: newImageUrl });
+    // 4. Save Asset and AssetRelation for true Asset Lineage tracking
+    let newAsset = null;
+    if (generationId) {
+      const parentAsset = await prisma.asset.findUnique({ where: { id: generationId } });
+      if (parentAsset) {
+        newAsset = await prisma.asset.create({
+          data: {
+            vendorId: parentAsset.vendorId,
+            customerId: parentAsset.customerId,
+            garmentId: parentAsset.garmentId,
+            imageUrl: newImageUrl,
+            assetType: 'OUTFIT_MOD_RESULT',
+            status: 'COMPLETED',
+            metadata: { modificationType, originalSessionId: parentAsset.metadata?.originalSessionId || generationId }
+          }
+        });
+        await prisma.assetRelation.create({
+          data: {
+            parentAssetId: generationId,
+            childAssetId: newAsset.id,
+            action: 'OUTFIT_MOD',
+            promptUsed: mod.prompt
+          }
+        });
+      }
+    }
+
+    res.json({ success: true, resultImageUrl: newImageUrl, asset_id: newAsset?.id, generation_id: newAsset?.id });
   } catch (err) {
     console.error('[ModifyOutfit] Error:', err.message);
     res.status(500).json({ error: err.message });
