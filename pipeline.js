@@ -541,15 +541,11 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE') {
     throw new Error('Missing required arguments: garmentPayload and humanImageUrl.');
   }
 
-  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY not set in .env — required for Gemini 3.1 Try-On pipeline.');
-  }
-
   try {
-    console.log('[Pipeline] Preprocessing garment(s) + human image for Gemini 3.1...');
+    const isSaree = (!category || category.toUpperCase() === 'SAREE');
     
-    // Parse garment payload to extract saree and optional blouse URLs
+    // Parse the garment payload to get all available images
+    let garmentUrls = [];
     let sareeUrl = null;
     let blouseUrl = null;
 
@@ -557,39 +553,56 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE') {
       try {
         const parsed = JSON.parse(garmentPayload);
         if (typeof parsed === 'object' && parsed !== null) {
-          // Structured upload: { saree: "url", blouse: "url" }
-          sareeUrl = parsed.saree || parsed.full || Object.values(parsed)[0];
+          garmentUrls = Object.values(parsed);
+          sareeUrl = parsed.saree || parsed.full || garmentUrls[0];
           blouseUrl = parsed.blouse || null;
         } else {
+          garmentUrls = [garmentPayload];
           sareeUrl = garmentPayload;
         }
       } catch(e) {
+        garmentUrls = [garmentPayload];
         sareeUrl = garmentPayload;
       }
     } else if (typeof garmentPayload === 'object' && garmentPayload !== null) {
-      sareeUrl = garmentPayload.saree || garmentPayload.full || Object.values(garmentPayload)[0];
+      garmentUrls = Object.values(garmentPayload);
+      sareeUrl = garmentPayload.saree || garmentPayload.full || garmentUrls[0];
       blouseUrl = garmentPayload.blouse || null;
     }
 
-    if (!sareeUrl) throw new Error('No saree/garment image URL found in payload.');
-
-    const garmentB64 = await imageUrlToBase64(sareeUrl);
-    const personB64 = await imageUrlToBase64(humanImageUrl);
-    let blouseB64 = null;
-    if (blouseUrl) {
-      console.log('[Pipeline] Blouse image detected — downloading...');
-      blouseB64 = await imageUrlToBase64(blouseUrl);
+    if (garmentUrls.length === 0 || !sareeUrl) {
+      throw new Error('No garment image URLs found in payload.');
     }
 
-    console.log('[Pipeline] Calling Gemini 3.1 Flash Image for try-on...');
-    const resultB64 = await callGeminiTryOn(garmentB64, personB64, blouseB64, category);
+    const personB64 = await imageUrlToBase64(humanImageUrl);
+    let resultB64;
+
+    if (isSaree) {
+      console.log('[Pipeline] Category is SAREE. Routing to Gemini 3.1 Try-On...');
+      const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+      if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set in .env');
+
+      const garmentB64 = await imageUrlToBase64(sareeUrl);
+      let blouseB64 = null;
+      if (blouseUrl) {
+        console.log('[Pipeline] Blouse image detected — downloading...');
+        blouseB64 = await imageUrlToBase64(blouseUrl);
+      }
+      resultB64 = await callGeminiTryOn(garmentB64, personB64, blouseB64, category);
+    } else {
+      console.log(`[Pipeline] Category is ${category}. Routing to Vertex AI Virtual Try-On...`);
+      // For Vertex AI (Lehengas, Kurtis), stitch all uploaded garment pieces into a single reference
+      const combinedGarmentB64 = await combineImageUrlsToBase64(garmentUrls);
+      resultB64 = await callVertexTryOn([combinedGarmentB64], personB64);
+    }
+
     console.log('[Pipeline] Uploading try-on result to Supabase...');
     const resultImageUrl = await uploadBase64ToSupabase(resultB64, 'results/tryon-results');
 
     console.log(`[Pipeline] ✅ Try-on result ready: ${resultImageUrl}`);
     return { resultImageUrl, is_mock: false };
   } catch (err) {
-    console.error('[Pipeline] Gemini Try-on generation failed:', err.message);
+    console.error('[Pipeline] Try-on generation failed:', err.message);
     throw err;
   }
 }
