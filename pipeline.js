@@ -254,23 +254,46 @@ CRITICAL: Analyze the Saree Reference image carefully.
 2. IF NO BLOUSE IS VISIBLE (e.g. folded fabric flat-lay): You MUST generate a modest, matching blouse (standard round neckline, half-sleeves) that complements the saree. Do NOT leave the customer bare.\n`;
   }
 
-  const fullPrompt = `You are a professional fashion photographer conducting a virtual fitting session for Indian ethnic wear. Your task is to dress the customer in the exact outfit from the reference, as if they walked into a fitting room and put it on.
+  const fullPrompt = `You are a professional fashion photographer conducting a virtual fitting session for Indian ethnic wear. The customer walked into your fitting room and put on the outfit from the garment reference. Your job is to photograph them wearing it — nothing else changes about the person.
 
-PHOTOGRAPHY BRIEF:
-Capture a natural, unretouched photograph shot on an 85mm portrait lens with soft ambient lighting matching the customer's environment. The result must be indistinguishable from a real photograph — no beauty filters, no airbrushed skin, no over-processed look.
+═══════════════════════════════════════════════════════════════════
+RULE #1 — ABSOLUTE IDENTITY LOCK (HIGHEST PRIORITY — OVERRIDES ALL OTHER INSTRUCTIONS)
+═══════════════════════════════════════════════════════════════════
+The customer's face is FORENSIC EVIDENCE. You are NOT allowed to alter it in any way.
 
+EXPRESSION LOCK:
+- If the customer is NOT smiling → the output must NOT smile. No smile. No micro-smile. No lip curl. Zero teeth visible unless teeth were already visible in the input.
+- If the customer IS smiling → preserve that exact smile. Same tooth visibility, same lip curvature, same crow's feet.
+- Do NOT "improve" the expression. Do NOT make them look "happier" or more "photogenic." The expression must be a forensic copy of the input.
+
+FACE LOCK:
+- Same bone structure, same jawline, same cheek contour, same nose shape, same eyebrow arch and thickness.
+- Same eye shape, same iris color, same eyelid crease, same under-eye texture (dark circles, lines — keep them).
+- Same skin texture with visible pores, blemishes, fine lines, and natural imperfections. Do NOT smooth, blur, or airbrush the skin.
+- Same makeup — if they have kajal, keep kajal. If they have no makeup, keep no makeup. Do NOT add or remove makeup.
+
+BODY LOCK:
+- Same body shape, proportions, weight, and posture. The outfit conforms to THEIR body — never reshape the body to fit the outfit.
+- Same skin tone uniformly across face, neck, arms, hands, and stomach — no lightening, no darkening, no evening out.
+- Hands and arms must remain anatomically natural — visible knuckle creases, natural finger curvature, correct finger count, organic skin folds.
+
+HAIR LOCK:
+- Same hairstyle, volume, parting, color, and flyaway strands. Do NOT restyle, smooth, or add volume.
+
+═══════════════════════════════════════════════════════════════════
+RULE #2 — THE GARMENT
+═══════════════════════════════════════════════════════════════════
 ${categoryInstruction}
 ${blouseInstruction}
-THE PERSON (from Customer Photo — this is sacred, change nothing):
-The person's face must remain pixel-perfect identical — same bone structure, expression, skin texture with visible pores and natural imperfections, same makeup. Their body shape, proportions, and posture must stay exactly as they are; the outfit conforms to their body, not the other way around.
+═══════════════════════════════════════════════════════════════════
+RULE #3 — THE SCENE
+═══════════════════════════════════════════════════════════════════
+Keep the identical background, walls, floor, furniture, objects, and ambient lighting from the customer photo. The garment must interact naturally with the existing light direction — casting soft ground shadows, receiving ambient color spill, with natural shadow gradients where fabric meets skin.
 
-Their hands and arms must remain anatomically natural with correct proportions — visible knuckle creases, natural finger curvature, organic skin folds between fingers. The skin tone across their entire body (face, neck, arms, hands, stomach) must be uniformly consistent with their original complexion. Their hairstyle, volume, and color remain completely untouched.
-
-THE SCENE (from Customer Photo — preserve entirely):
-Keep the identical background, walls, floor, furniture, objects, and ambient lighting. The garment must interact naturally with the existing light direction — casting soft ground shadows, receiving ambient color spill, with natural shadow gradients where fabric meets skin.
-
-REALISM QUALITY:
-Render natural skin texture with subtle pores, fine lines, and organic color variation. The fabric must show realistic micro-wrinkles, natural drape weight, and light interaction appropriate to the material (silk sheen, cotton matte, chiffon translucency). No fused fingers, no extra digits, no warped anatomy, no plastic-looking skin, no floating fabric edges.
+═══════════════════════════════════════════════════════════════════
+RULE #4 — PHOTOGRAPHIC QUALITY
+═══════════════════════════════════════════════════════════════════
+Shot on 85mm portrait lens, soft ambient lighting matching the customer's environment. The result must be indistinguishable from a real, unretouched photograph. Render natural skin texture with pores and fine lines. The fabric must show realistic micro-wrinkles, natural drape weight, and material-appropriate light interaction (silk sheen, cotton matte, chiffon translucency). No fused fingers, no extra digits, no warped anatomy, no plastic skin, no floating fabric edges. No beauty filters. No airbrushing.
 
 Produce exactly one final photograph.`;
 
@@ -534,9 +557,10 @@ async function generateFrontView(garmentImageUrl) {
  * @param {string|object} garmentPayload - String URL or JSON string containing {saree, blouse}
  * @param {string} humanImageUrl
  * @param {string} category - Category of the garment
- * @returns {object} { resultImageUrl, is_mock }
+ * @param {boolean} skipUpload - If true, skips uploading to Supabase
+ * @returns {object} { resultImageUrl, resultB64, is_mock }
  */
-async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targetFolder = 'results/tryon-results') {
+async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targetFolder = 'results/tryon-results', skipUpload = false) {
   if (!garmentPayload || !humanImageUrl) {
     throw new Error('Missing required arguments: garmentPayload and humanImageUrl.');
   }
@@ -596,11 +620,16 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
       resultB64 = await callVertexTryOn([combinedGarmentB64], personB64);
     }
 
-    console.log(`[Pipeline] Uploading try-on result to Supabase folder: ${targetFolder}...`);
-    const resultImageUrl = await uploadBase64ToSupabase(resultB64, targetFolder);
+    let resultImageUrl = null;
+    if (!skipUpload) {
+      console.log(`[Pipeline] Uploading try-on result to Supabase folder: ${targetFolder}...`);
+      resultImageUrl = await uploadBase64ToSupabase(resultB64, targetFolder);
+      console.log(`[Pipeline] ✅ Try-on result ready: ${resultImageUrl}`);
+    } else {
+      console.log(`[Pipeline] ✅ Try-on result ready: Base64 string generated (Supabase upload skipped)`);
+    }
 
-    console.log(`[Pipeline] ✅ Try-on result ready: ${resultImageUrl}`);
-    return { resultImageUrl, is_mock: false };
+    return { resultImageUrl, resultB64, is_mock: false };
   } catch (err) {
     console.error('[Pipeline] Try-on generation failed:', err.message);
     throw err;

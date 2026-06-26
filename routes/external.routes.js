@@ -25,12 +25,12 @@ function requireApiKey(req, res, next) {
 // ─────────────────────────────────────────────────────────────────────────────
 // EXT-1. Virtual Try-On
 //    POST /api/external/tryon
-//    Body: { garmentImageUrl, humanImageUrl, category }
-//    Returns: { resultImageUrl, processingTimeMs }
+//    Body: { garmentImageUrl, humanImageUrl, category, blouseImageUrl, returnBase64 }
+//    Returns: { resultImageUrl (if !returnBase64), resultBase64 (if returnBase64), processingTimeMs }
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/external/tryon', requireApiKey, async (req, res) => {
   const startTime = Date.now();
-  const { garmentImageUrl, humanImageUrl, category } = req.body;
+  const { garmentImageUrl, humanImageUrl, category, blouseImageUrl, returnBase64 } = req.body;
 
   if (!garmentImageUrl || !humanImageUrl) {
     return res.status(400).json({
@@ -38,21 +38,33 @@ router.post('/api/external/tryon', requireApiKey, async (req, res) => {
     });
   }
 
+  let garmentPayload = garmentImageUrl;
+  if (blouseImageUrl) {
+    garmentPayload = { saree: garmentImageUrl, blouse: blouseImageUrl };
+  }
+
   try {
     console.log(`[External API] Try-On request: category=${category || 'N/A'}`);
 
-    // Call the same pipeline used by internal routes
-    const { resultImageUrl, is_mock } = await runTryOn(garmentImageUrl, humanImageUrl, category);
+    // Call the pipeline with the skipUpload flag
+    const { resultImageUrl, resultB64, is_mock } = await runTryOn(garmentPayload, humanImageUrl, category, 'results/tryon-results', !!returnBase64);
 
     const processingTimeMs = Date.now() - startTime;
     console.log(`[External API] ✅ Try-On completed in ${processingTimeMs}ms`);
 
-    res.json({
+    const responsePayload = {
       success: true,
-      resultImageUrl,
       processingTimeMs,
       is_mock,
-    });
+    };
+
+    if (returnBase64) {
+      responsePayload.resultBase64 = resultB64;
+    } else {
+      responsePayload.resultImageUrl = resultImageUrl;
+    }
+
+    res.json(responsePayload);
   } catch (err) {
     console.error('[External API] Try-On failed:', err.message);
     res.status(500).json({ error: err.message });
@@ -62,12 +74,12 @@ router.post('/api/external/tryon', requireApiKey, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // EXT-2. Background Change (Gemini Compositing)
 //    POST /api/external/change-background
-//    Body: { imageUrl, targetBgUrl, prompt }
-//    Returns: { resultImageUrl, processingTimeMs }
+//    Body: { imageUrl, targetBgUrl, prompt, returnBase64 }
+//    Returns: { resultImageUrl (if !returnBase64), resultBase64 (if returnBase64), processingTimeMs }
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/external/change-background', requireApiKey, async (req, res) => {
   const startTime = Date.now();
-  const { imageUrl, backgroundId } = req.body;
+  const { imageUrl, backgroundId, returnBase64 } = req.body;
 
   if (!imageUrl || !backgroundId) {
     return res.status(400).json({
@@ -97,17 +109,27 @@ router.post('/api/external/change-background', requireApiKey, async (req, res) =
     // 3. Call Gemini pipeline (prompt resolved from prompts.js)
     const resultB64 = await changeBackgroundWithGemini(personBase64, targetBgBase64, bg.prompt);
 
-    // 4. Upload result to Supabase
-    const resultImageUrl = await uploadBase64ToSupabase(resultB64, 'results/background-swaps');
+    // 4. Optionally upload result to Supabase
+    let resultImageUrl = null;
+    if (!returnBase64) {
+      resultImageUrl = await uploadBase64ToSupabase(resultB64, 'results/background-swaps');
+    }
 
     const processingTimeMs = Date.now() - startTime;
     console.log(`[External API] ✅ Background change completed in ${processingTimeMs}ms`);
 
-    res.json({
+    const responsePayload = {
       success: true,
-      resultImageUrl,
       processingTimeMs,
-    });
+    };
+
+    if (returnBase64) {
+      responsePayload.resultBase64 = resultB64;
+    } else {
+      responsePayload.resultImageUrl = resultImageUrl;
+    }
+
+    res.json(responsePayload);
   } catch (err) {
     console.error('[External API] Background change failed:', err.message);
     res.status(500).json({ error: err.message });
@@ -117,12 +139,12 @@ router.post('/api/external/change-background', requireApiKey, async (req, res) =
 // ─────────────────────────────────────────────────────────────────────────────
 // EXT-3. Outfit Modification (Blouse/Neck with Gemini)
 //    POST /api/external/modify-outfit
-//    Body: { imageUrl, prompt }
-//    Returns: { resultImageUrl, processingTimeMs }
+//    Body: { imageUrl, modificationType, returnBase64 }
+//    Returns: { resultImageUrl (if !returnBase64), resultBase64 (if returnBase64), processingTimeMs }
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/external/modify-outfit', requireApiKey, async (req, res) => {
   const startTime = Date.now();
-  const { imageUrl, modificationType } = req.body;
+  const { imageUrl, modificationType, returnBase64 } = req.body;
 
   if (!imageUrl || !modificationType) {
     return res.status(400).json({
@@ -147,19 +169,86 @@ router.post('/api/external/modify-outfit', requireApiKey, async (req, res) => {
     // 2. Call Gemini pipeline (prompt resolved from prompts.js)
     const resultB64 = await modifyOutfitWithGemini(personBase64, mod.prompt);
 
-    // 3. Upload result to Supabase
-    const resultImageUrl = await uploadBase64ToSupabase(resultB64, 'results/outfit-edits');
+    // 3. Optionally upload result to Supabase
+    let resultImageUrl = null;
+    if (!returnBase64) {
+      resultImageUrl = await uploadBase64ToSupabase(resultB64, 'results/outfit-edits');
+    }
 
     const processingTimeMs = Date.now() - startTime;
     console.log(`[External API] ✅ Outfit modification completed in ${processingTimeMs}ms`);
 
-    res.json({
+    const responsePayload = {
       success: true,
-      resultImageUrl,
       processingTimeMs,
-    });
+    };
+
+    if (returnBase64) {
+      responsePayload.resultBase64 = resultB64;
+    } else {
+      responsePayload.resultImageUrl = resultImageUrl;
+    }
+
+    res.json(responsePayload);
   } catch (err) {
     console.error('[External API] Outfit modification failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// EXT-4. Draping (Phase 1)
+//    POST /api/external/drape
+//    Body: { flatlayImageUrl, blouseImageUrl, category, returnBase64 }
+//    Returns: { resultImageUrl (if !returnBase64), resultBase64 (if returnBase64), processingTimeMs }
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/api/external/drape', requireApiKey, async (req, res) => {
+  const startTime = Date.now();
+  const { flatlayImageUrl, blouseImageUrl, category, returnBase64 } = req.body;
+
+  if (!flatlayImageUrl) {
+    return res.status(400).json({
+      error: 'Missing required field: flatlayImageUrl.',
+    });
+  }
+
+  // The default AI standing model for catalog draping
+  const DEFAULT_MODEL_URL = "https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default_model.jpg";
+
+  let garmentPayload = flatlayImageUrl;
+  if (blouseImageUrl) {
+    garmentPayload = { saree: flatlayImageUrl, blouse: blouseImageUrl };
+  }
+
+  try {
+    console.log(`[External API] Drape request: category=${category || 'SAREE'}`);
+
+    // Call the pipeline forcing it to use the default standing model, saving to 'vendor-drapes'
+    const { resultImageUrl, resultB64, is_mock } = await runTryOn(
+      garmentPayload, 
+      DEFAULT_MODEL_URL, 
+      category || 'SAREE', 
+      'vendor-drapes', 
+      !!returnBase64
+    );
+
+    const processingTimeMs = Date.now() - startTime;
+    console.log(`[External API] ✅ Drape completed in ${processingTimeMs}ms`);
+
+    const responsePayload = {
+      success: true,
+      processingTimeMs,
+      is_mock,
+    };
+
+    if (returnBase64) {
+      responsePayload.resultBase64 = resultB64;
+    } else {
+      responsePayload.resultImageUrl = resultImageUrl;
+    }
+
+    res.json(responsePayload);
+  } catch (err) {
+    console.error('[External API] Drape failed:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
