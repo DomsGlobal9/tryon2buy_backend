@@ -15,7 +15,3 @@ Thumbs.db
 EXTERNAL_API_DOCS.md
 Tryon2Buy.postman_collection.json
 MICROSERVICE_SCALING_PLAN.md
-
-# Scripts
-fix-password.js
-set-unlimited.js

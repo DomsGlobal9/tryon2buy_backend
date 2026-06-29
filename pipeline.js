@@ -247,7 +247,11 @@ async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category
   if (isSaree) {
     blouseInstruction = blouseProcessed
       ? `\nTHE BLOUSE (from Blouse Reference — separate image):
-A separate blouse image has been provided. Use the exact neckline shape, sleeve length, sleeve style, fabric texture, color, and embroidery from this Blouse Reference image. The blouse must be tailored to fit the customer's body naturally. Ignore any blouse visible in the Saree Reference — use ONLY the separately provided blouse design.\n`
+A separate blouse image has been provided (this may be a fully stitched blouse or an unstitched flat piece of fabric). 
+1. Transfer the exact fabric texture, color, and embroidery from this Blouse Reference image.
+2. If the reference is unstitched flat fabric, you MUST construct a standard, modest regular neckline (strictly NO collar necks) with standard half-sleeves.
+3. If the reference is a stitched blouse, copy its exact neckline and sleeves (but NEVER invent a collar if one isn't clearly there). 
+The blouse must be tailored to fit the customer's body naturally. Ignore any blouse visible in the Saree Reference.\n`
       : `\nTHE BLOUSE (No separate image provided):
 CRITICAL: Analyze the Saree Reference image carefully.
 1. IF A BLOUSE IS VISIBLE: You MUST copy its exact neckline, sleeve length, color, fabric texture, and embroidery. Do NOT redesign it. Do NOT invent new patterns. Reproduce the visible blouse with 100% pixel-perfect accuracy.
@@ -622,6 +626,42 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
 
     let resultImageUrl = null;
     if (!skipUpload) {
+      console.log(`[Pipeline] Applying TRYON2BUY watermark...`);
+      const watermarkPath = require('path').resolve(__dirname, '../frontend/public/TRYON2BUY LOGO (black ).png');
+      
+      try {
+        const resultBuffer = Buffer.from(resultB64, 'base64');
+        const meta = await sharp(resultBuffer).metadata();
+        const watermarkWidth = meta.width || 768; // Dynamically match full image width
+
+        const watermark = await sharp(watermarkPath)
+          .resize({ width: watermarkWidth }) 
+          .ensureAlpha()
+          .composite([
+            {
+              input: Buffer.from([255, 255, 255, 64]), // Lowered to ~25% opacity
+              raw: { width: 1, height: 1, channels: 4 },
+              tile: true,
+              blend: 'dest-in'
+            }
+          ])
+          .toBuffer();
+
+        const watermarkedBuffer = await sharp(resultBuffer)
+          .composite([
+            {
+              input: watermark,
+              gravity: 'center',
+            }
+          ])
+          .jpeg({ quality: 92 })
+          .toBuffer();
+
+        resultB64 = watermarkedBuffer.toString('base64');
+      } catch (wmErr) {
+        console.error('[Pipeline] Watermarking failed (skipping):', wmErr.message);
+      }
+
       console.log(`[Pipeline] Uploading try-on result to Supabase folder: ${targetFolder}...`);
       resultImageUrl = await uploadBase64ToSupabase(resultB64, targetFolder);
       console.log(`[Pipeline] ✅ Try-on result ready: ${resultImageUrl}`);

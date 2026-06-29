@@ -9,6 +9,7 @@ const {
 const { authenticateVendor, authenticateCustomer, authenticateUser, optionalAuthenticateUser } = require('../middleware/auth');
 const prisma = require('../lib/prisma');
 const upload = require('../lib/upload');
+const sharp = require('sharp');
 
 const router = express.Router();
 const DEFAULT_VENDOR_ID = 'feb21067-a3ee-4020-b388-16d3a37a29ce';
@@ -31,10 +32,16 @@ router.post('/api/tryon/upload', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: `Invalid folder. Use: ${allowedFolders.join(', ')}` });
     }
 
-    const ext = req.file.originalname.split('.').pop()?.toLowerCase() || 'jpg';
-    const url = await uploadBufferToSupabase(req.file.buffer, folder, ext);
+    // Process image: Auto-rotate based on EXIF to fix 90-deg rotation bugs from mobile cameras,
+    // and convert to a standard JPEG to ensure maximum compatibility with the AI pipeline.
+    const processedBuffer = await sharp(req.file.buffer)
+      .rotate()
+      .jpeg({ quality: 90 })
+      .toBuffer();
 
-    res.json({ url, folder, size: req.file.size });
+    const url = await uploadBufferToSupabase(processedBuffer, folder, 'jpg');
+
+    res.json({ url, folder, size: processedBuffer.length });
   } catch (err) {
     console.error('[Upload] Error:', err.message);
     res.status(500).json({ error: err.message });
@@ -393,9 +400,11 @@ router.get('/api/tryon/vendor/:vendorId/gallery', async (req, res) => {
     const { vendorId } = req.params;
     
     const masterVendor = await prisma.vendor.findUnique({ where: { email: 'vendor@store.com' } });
-    const vendorIds = [vendorId];
-    if (vendorId === 'demo' && masterVendor) {
-      vendorIds.push(masterVendor.id);
+    const vendorIds = [];
+    if (vendorId === 'demo') {
+      if (masterVendor) vendorIds.push(masterVendor.id);
+    } else {
+      vendorIds.push(vendorId);
     }
     const assets = await prisma.asset.findMany({
       where: {
@@ -407,13 +416,17 @@ router.get('/api/tryon/vendor/:vendorId/gallery', async (req, res) => {
       take: 100,
     });
 
-    const generations = assets.map(a => ({
-      id: a.id,
-      category: a.metadata?.category || null,
-      resultImageUrl: a.imageUrl,
-      garmentImageUrl: a.metadata?.garmentImageUrl || '',
-      createdAt: a.createdAt,
-    }));
+    // Filter to ONLY show Phase 1 (Vendor Catalog Drapes)
+    // Do not show Phase 2 (Customer Try-on selfies) in the public gallery
+    const generations = assets
+      .filter(a => a.metadata?.phase === 1 || !a.metadata?.phase)
+      .map(a => ({
+        id: a.id,
+        category: a.metadata?.category || null,
+        resultImageUrl: a.imageUrl,
+        garmentImageUrl: a.metadata?.garmentImageUrl || '',
+        createdAt: a.createdAt,
+      }));
 
     res.json({ vendorId, generations });
   } catch (err) {
