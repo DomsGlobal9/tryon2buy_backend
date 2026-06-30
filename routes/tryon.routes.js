@@ -246,7 +246,11 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
 
     // Run virtual try-on pipeline
     const tryOnPayload = garmentUrlsObj || primaryGarmentUrl;
-    const applyWatermark = req.userRole !== 'vendor';
+    
+    // Apply watermark ONLY if this is a Customer Try-On flow (Phase 2)
+    const isCustomerFlow = !!req.body.parent_generation_id || (target_folder && target_folder.includes('tryon-results'));
+    const applyWatermark = isCustomerFlow;
+
     let result;
     try {
       result = await runTryOn(tryOnPayload, human_image_url, category, target_folder || 'results/tryon-results', false, applyWatermark);
@@ -491,9 +495,8 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
     const { changeBackgroundWithGemini, applyWatermarkToBase64 } = require('../pipeline');
     let resultB64 = await changeBackgroundWithGemini(personBase64, targetBgBase64, bg.prompt);
 
-    if (req.userRole !== 'vendor') {
-      resultB64 = await applyWatermarkToBase64(resultB64);
-    }
+    // Always apply watermark because background change is strictly a Customer Try-On feature
+    resultB64 = await applyWatermarkToBase64(resultB64);
 
     // 4. Upload to Supabase
     const { uploadBase64ToSupabase } = require('../storage');
@@ -583,9 +586,8 @@ router.post('/api/tryon/modify-outfit', optionalAuthenticateUser, async (req, re
     const { modifyOutfitWithGemini, applyWatermarkToBase64 } = require('../pipeline');
     let resultB64 = await modifyOutfitWithGemini(personBase64, mod.prompt);
 
-    if (req.userRole !== 'vendor') {
-      resultB64 = await applyWatermarkToBase64(resultB64);
-    }
+    // Always apply watermark because outfit modification is strictly a Customer Try-On feature
+    resultB64 = await applyWatermarkToBase64(resultB64);
 
     // 3. Upload to Supabase
     const { uploadBase64ToSupabase } = require('../storage');
