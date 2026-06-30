@@ -627,7 +627,7 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
     let resultImageUrl = null;
     if (!skipUpload) {
       console.log(`[Pipeline] Applying TRYON2BUY watermark...`);
-      const watermarkPath = require('path').resolve(__dirname, '../frontend/public/TRYON2BUY LOGO (black ).png');
+      const watermarkPath = require('path').resolve(__dirname, 'watermark.png');
       
       try {
         const resultBuffer = Buffer.from(resultB64, 'base64');
