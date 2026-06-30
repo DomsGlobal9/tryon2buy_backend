@@ -627,41 +627,7 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
     let resultImageUrl = null;
     if (!skipUpload) {
       if (applyWatermark) {
-        console.log(`[Pipeline] Applying TRYON2BUY watermark...`);
-        const watermarkPath = require('path').resolve(__dirname, 'watermark.png');
-        
-        try {
-          const resultBuffer = Buffer.from(resultB64, 'base64');
-          const meta = await sharp(resultBuffer).metadata();
-          const watermarkWidth = meta.width || 768; // Dynamically match full image width
-
-          const watermark = await sharp(watermarkPath)
-            .resize({ width: watermarkWidth }) 
-            .ensureAlpha()
-            .composite([
-              {
-                input: Buffer.from([255, 255, 255, 64]), // Lowered to ~25% opacity
-                raw: { width: 1, height: 1, channels: 4 },
-                tile: true,
-                blend: 'dest-in'
-              }
-            ])
-            .toBuffer();
-
-          const watermarkedBuffer = await sharp(resultBuffer)
-            .composite([
-              {
-                input: watermark,
-                gravity: 'center',
-              }
-            ])
-            .jpeg({ quality: 92 })
-            .toBuffer();
-
-          resultB64 = watermarkedBuffer.toString('base64');
-        } catch (wmErr) {
-          console.error('[Pipeline] Watermarking failed (skipping):', wmErr.message);
-        }
+        resultB64 = await applyWatermarkToBase64(resultB64);
       }
 
       console.log(`[Pipeline] Uploading try-on result to Supabase folder: ${targetFolder}...`);
@@ -821,10 +787,50 @@ async function modifyOutfitWithGemini(personBase64, prompt) {
   throw new Error('Gemini outfit modification failed after all retries.');
 }
 
+async function applyWatermarkToBase64(resultB64) {
+  console.log(`[Pipeline] Applying TRYON2BUY watermark...`);
+  const watermarkPath = require('path').resolve(__dirname, 'watermark.png');
+  
+  try {
+    const resultBuffer = Buffer.from(resultB64, 'base64');
+    const meta = await sharp(resultBuffer).metadata();
+    const watermarkWidth = meta.width || 768; // Dynamically match full image width
+
+    const watermark = await sharp(watermarkPath)
+      .resize({ width: watermarkWidth }) 
+      .ensureAlpha()
+      .composite([
+        {
+          input: Buffer.from([255, 255, 255, 64]), // Lowered to ~25% opacity
+          raw: { width: 1, height: 1, channels: 4 },
+          tile: true,
+          blend: 'dest-in'
+        }
+      ])
+      .toBuffer();
+
+    const watermarkedBuffer = await sharp(resultBuffer)
+      .composite([
+        {
+          input: watermark,
+          gravity: 'center',
+        }
+      ])
+      .jpeg({ quality: 92 })
+      .toBuffer();
+
+    return watermarkedBuffer.toString('base64');
+  } catch (wmErr) {
+    console.error('[Pipeline] Watermarking failed (skipping):', wmErr.message);
+    return resultB64; // return original if it fails
+  }
+}
+
 module.exports = {
   generateFrontView,
   runTryOn,
   changeBackgroundWithGemini,
   modifyOutfitWithGemini,
+  applyWatermarkToBase64,
   hasGoogleCredentials
 };

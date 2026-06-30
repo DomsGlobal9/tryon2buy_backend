@@ -488,8 +488,12 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
     const targetBgBase64 = Buffer.from(await bgResponse.arrayBuffer()).toString('base64');
 
     // 3. Call pipeline (prompt also resolved from prompts.js)
-    const { changeBackgroundWithGemini } = require('../pipeline');
-    const resultB64 = await changeBackgroundWithGemini(personBase64, targetBgBase64, bg.prompt);
+    const { changeBackgroundWithGemini, applyWatermarkToBase64 } = require('../pipeline');
+    let resultB64 = await changeBackgroundWithGemini(personBase64, targetBgBase64, bg.prompt);
+
+    if (req.userRole !== 'vendor') {
+      resultB64 = await applyWatermarkToBase64(resultB64);
+    }
 
     // 4. Upload to Supabase
     const { uploadBase64ToSupabase } = require('../storage');
@@ -576,8 +580,12 @@ router.post('/api/tryon/modify-outfit', optionalAuthenticateUser, async (req, re
     const personBase64 = Buffer.from(await imgResponse.arrayBuffer()).toString('base64');
 
     // 2. Call pipeline (prompt resolved from prompts.js)
-    const { modifyOutfitWithGemini } = require('../pipeline');
-    const resultB64 = await modifyOutfitWithGemini(personBase64, mod.prompt);
+    const { modifyOutfitWithGemini, applyWatermarkToBase64 } = require('../pipeline');
+    let resultB64 = await modifyOutfitWithGemini(personBase64, mod.prompt);
+
+    if (req.userRole !== 'vendor') {
+      resultB64 = await applyWatermarkToBase64(resultB64);
+    }
 
     // 3. Upload to Supabase
     const { uploadBase64ToSupabase } = require('../storage');
