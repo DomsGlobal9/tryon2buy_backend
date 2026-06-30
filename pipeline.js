@@ -564,7 +564,7 @@ async function generateFrontView(garmentImageUrl) {
  * @param {boolean} skipUpload - If true, skips uploading to Supabase
  * @returns {object} { resultImageUrl, resultB64, is_mock }
  */
-async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targetFolder = 'results/tryon-results', skipUpload = false) {
+async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targetFolder = 'results/tryon-results', skipUpload = false, applyWatermark = true) {
   if (!garmentPayload || !humanImageUrl) {
     throw new Error('Missing required arguments: garmentPayload and humanImageUrl.');
   }
@@ -626,40 +626,42 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
 
     let resultImageUrl = null;
     if (!skipUpload) {
-      console.log(`[Pipeline] Applying TRYON2BUY watermark...`);
-      const watermarkPath = require('path').resolve(__dirname, 'watermark.png');
-      
-      try {
-        const resultBuffer = Buffer.from(resultB64, 'base64');
-        const meta = await sharp(resultBuffer).metadata();
-        const watermarkWidth = meta.width || 768; // Dynamically match full image width
+      if (applyWatermark) {
+        console.log(`[Pipeline] Applying TRYON2BUY watermark...`);
+        const watermarkPath = require('path').resolve(__dirname, 'watermark.png');
+        
+        try {
+          const resultBuffer = Buffer.from(resultB64, 'base64');
+          const meta = await sharp(resultBuffer).metadata();
+          const watermarkWidth = meta.width || 768; // Dynamically match full image width
 
-        const watermark = await sharp(watermarkPath)
-          .resize({ width: watermarkWidth }) 
-          .ensureAlpha()
-          .composite([
-            {
-              input: Buffer.from([255, 255, 255, 64]), // Lowered to ~25% opacity
-              raw: { width: 1, height: 1, channels: 4 },
-              tile: true,
-              blend: 'dest-in'
-            }
-          ])
-          .toBuffer();
+          const watermark = await sharp(watermarkPath)
+            .resize({ width: watermarkWidth }) 
+            .ensureAlpha()
+            .composite([
+              {
+                input: Buffer.from([255, 255, 255, 64]), // Lowered to ~25% opacity
+                raw: { width: 1, height: 1, channels: 4 },
+                tile: true,
+                blend: 'dest-in'
+              }
+            ])
+            .toBuffer();
 
-        const watermarkedBuffer = await sharp(resultBuffer)
-          .composite([
-            {
-              input: watermark,
-              gravity: 'center',
-            }
-          ])
-          .jpeg({ quality: 92 })
-          .toBuffer();
+          const watermarkedBuffer = await sharp(resultBuffer)
+            .composite([
+              {
+                input: watermark,
+                gravity: 'center',
+              }
+            ])
+            .jpeg({ quality: 92 })
+            .toBuffer();
 
-        resultB64 = watermarkedBuffer.toString('base64');
-      } catch (wmErr) {
-        console.error('[Pipeline] Watermarking failed (skipping):', wmErr.message);
+          resultB64 = watermarkedBuffer.toString('base64');
+        } catch (wmErr) {
+          console.error('[Pipeline] Watermarking failed (skipping):', wmErr.message);
+        }
       }
 
       console.log(`[Pipeline] Uploading try-on result to Supabase folder: ${targetFolder}...`);

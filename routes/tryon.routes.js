@@ -214,7 +214,7 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
     // Create Asset record with status PROCESSING
     const asset = await prisma.asset.create({
       data: {
-        vendorId: req.userRole === 'vendor' ? req.vendorId : (req.body.vendorId || null),
+        vendorId: req.userRole === 'vendor' ? null : (req.body.vendorId || null), // Temporary for vendors, but tracked for customers
         customerId: null,
         garmentId: garment_id || null,
         imageUrl: human_image_url, // Temporary until result is ready
@@ -246,9 +246,10 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
 
     // Run virtual try-on pipeline
     const tryOnPayload = garmentUrlsObj || primaryGarmentUrl;
+    const applyWatermark = req.userRole !== 'vendor';
     let result;
     try {
-      result = await runTryOn(tryOnPayload, human_image_url, category, target_folder || 'results/tryon-results');
+      result = await runTryOn(tryOnPayload, human_image_url, category, target_folder || 'results/tryon-results', false, applyWatermark);
     } catch (pipelineErr) {
       // If AI fails, update record to FAILED
       await prisma.asset.update({
@@ -721,5 +722,33 @@ router.get('/api/tryon/default-models', (req, res) => {
 // EXTERNAL API ENDPOINTS (require x-api-key header)
 // These are designed for 3rd-party catalogs and external integrations.
 // ═══════════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NEW: SAVE TO LIBRARY ENDPOINT
+// ═══════════════════════════════════════════════════════════════════════════════
+router.post('/api/tryon/save-to-library', authenticateVendor, async (req, res) => {
+  try {
+    const { generationId } = req.body;
+    if (!generationId) {
+      return res.status(400).json({ error: 'generationId is required' });
+    }
+    
+    const asset = await prisma.asset.findUnique({ where: { id: generationId } });
+    if (!asset) {
+      return res.status(404).json({ error: 'Asset not found' });
+    }
+
+    // Save to the vendor's library
+    const updated = await prisma.asset.update({
+      where: { id: generationId },
+      data: { vendorId: req.vendorId }
+    });
+
+    res.json({ success: true, message: 'Saved to library', asset: updated });
+  } catch (err) {
+    console.error('[TryOn] Save to library error:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
 module.exports = router;
