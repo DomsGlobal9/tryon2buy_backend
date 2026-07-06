@@ -21,7 +21,7 @@ const tryonRoutes = require('./routes/tryon.routes');
 dotenv.config();
 
 const app = express();
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 4000;
 
 // CORS: Only allow our own frontends (strict security)

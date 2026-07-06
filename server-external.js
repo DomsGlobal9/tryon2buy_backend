@@ -22,7 +22,7 @@ const externalRoutes = require('./routes/external.routes');
 dotenv.config();
 
 const app = express();
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 const PORT = process.env.EXTERNAL_PORT || process.env.PORT || 4001;
 
 // CORS: Open for external B2B clients (they call from their own servers/domains)
