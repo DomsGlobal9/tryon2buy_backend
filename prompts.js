@@ -250,7 +250,7 @@ function getModelResolution(modelId, category) {
 const CATEGORY_PROMPTS = {
   'SAREE': `THE SAREE (from Saree Reference):
 Faithfully reproduce every detail of the saree draping. Preserve the complete pallu with its full length and natural fall over the shoulder, maintain every pleat at the waist with their exact crispness, and keep the precise wrapping pattern around the body. Transfer the exact color palette, weave pattern, embroidery, zari borders, and motifs — the fabric must be identical, not approximated. 
-CRITICAL BORDER RULE: The bottom edge of the pallu must end EXACTLY at the final zari border. Do NOT generate any plain fabric extending past or below the woven border. The physical cut edge of the cloth must seamlessly align with the very end of the border pattern.`,
+CRITICAL BORDER RULE (MANDATORY): The pallu MUST stop exactly at the woven zari border. DO NOT invent or extend any plain fabric below the border to touch the floor. There must be ZERO plain fabric hanging beneath the bottom horizontal border. If the border ends above the floor, leave it hanging in the air. Do NOT draw a fabric train on the floor.`,
   
   'LEHANGA': `THE LEHANGA SET (from Garment Reference):
 Faithfully reproduce the 3-piece Lehenga set. Preserve the exact volume, heavy flare, and pleating of the Lehenga skirt. Reproduce the exact cut, neckline, and sleeve length of the Choli (blouse). If a Dupatta is present in the reference, drape it exactly as shown across the shoulder or arms. Transfer the exact color palette, heavy embroidery, beadwork, and borders.`,
