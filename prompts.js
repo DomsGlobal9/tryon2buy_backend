@@ -178,6 +178,72 @@ function listNeckModifications() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MODEL PROMPTS (Base Models for Catalog Draping)
+// id → imageUrl
+// ─────────────────────────────────────────────────────────────────────────────
+const MODEL_PROMPTS = {
+  // SAREE / DEFAULT models
+  'saree-1': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/41.jpeg',
+  'saree-2': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/42.jpeg',
+  'saree-3': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/43.jpeg',
+  'saree-4': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/44.jpeg',
+  
+  // LEHANGA models
+  'lehanga-1': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/lehanga/lehanga1.jpg',
+  'lehanga-2': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/lehanga/lehanga2.jpg',
+  'lehanga-3': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/lehanga/lehanga3.jpg',
+  'lehanga-4': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/lehanga/lehanga4.jpg',
+  
+  // ANARKALI models
+  'anarkali-1': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/anarkali/anarkali1.jpg',
+  'anarkali-2': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/anarkali/anarkali2.jpg',
+  'anarkali-3': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/anarkali/anarkali3.jpg',
+  'anarkali-4': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/anarkali/anarkali4.jpg',
+  
+  // SHARARA models
+  'sharara-1': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/sharara/shrara1.jpg',
+  'sharara-2': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/sharara/shrara2.jpg',
+  'sharara-3': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/sharara/shrara3.jpg',
+  'sharara-4': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/sharara/sharara4.jpg',
+  
+  // KURTHI models
+  'kurthi-1': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/kurti/kurti1.jpg',
+  'kurthi-2': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/kurti/kurti2.jpg',
+  'kurthi-3': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/kurti/kurti3.jpg',
+  'kurthi-4': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/kurti/kurti4.jpg'
+};
+
+/**
+ * Resolves a model ID to its URL, or selects a random model for a category if no ID is passed.
+ * @param {string} modelId 
+ * @param {string} category 
+ * @returns {string} URL of the selected model
+ */
+function getModelResolution(modelId, category) {
+  // If an explicit ID is passed and it exists, use it
+  if (modelId && MODEL_PROMPTS[modelId]) {
+    return MODEL_PROMPTS[modelId];
+  }
+
+  // Otherwise, use random fallback based on category
+  const safeCategory = category || 'DEFAULT';
+  const normalizedCat = safeCategory.toUpperCase();
+  
+  let prefix = 'saree-'; // Default for SAREE or DEFAULT
+
+  if (normalizedCat === 'LEHANGA') prefix = 'lehanga-';
+  else if (normalizedCat === 'ANARKALI') prefix = 'anarkali-';
+  else if (normalizedCat === 'SHARARA') prefix = 'sharara-';
+  else if (normalizedCat === 'KURTHI') prefix = 'kurthi-';
+
+  // Randomly pick 1 through 4
+  const randomNum = Math.floor(Math.random() * 4) + 1;
+  const targetId = prefix + randomNum;
+
+  return MODEL_PROMPTS[targetId];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CATEGORY-SPECIFIC TRY-ON PROMPTS
 // Used by pipeline.js to inject perfect ethnic fashion vocabulary
 // ─────────────────────────────────────────────────────────────────────────────
@@ -219,5 +285,6 @@ module.exports = {
   listBackgrounds,
   listBlouseModifications,
   listNeckModifications,
-  getCategoryPrompt
+  getCategoryPrompt,
+  getModelResolution
 };

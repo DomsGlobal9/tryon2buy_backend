@@ -2,6 +2,7 @@ const express = require('express');
 const { runTryOn, changeBackgroundWithGemini, modifyOutfitWithGemini } = require('../pipeline');
 const { uploadBase64ToSupabase } = require('../storage');
 const prisma = require('../lib/prisma');
+const { getModelResolution } = require('../prompts');
 
 const router = express.Router();
 
@@ -23,14 +24,14 @@ function requireApiKey(req, res, next) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EXT-1. Virtual Try-On
+// EXT-1. User Side Try-On (Customer App)
 //    POST /api/external/tryon
-//    Body: { garmentImageUrl, humanImageUrl, category, blouseImageUrl, returnBase64 }
+//    Body: { garmentImageUrl, humanImageUrl, category, returnBase64 }
 //    Returns: { resultImageUrl (if !returnBase64), resultBase64 (if returnBase64), processingTimeMs }
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/external/tryon', requireApiKey, async (req, res) => {
   const startTime = Date.now();
-  const { garmentImageUrl, humanImageUrl, category, blouseImageUrl, returnBase64 } = req.body;
+  const { garmentImageUrl, humanImageUrl, category, returnBase64 } = req.body;
 
   if (!garmentImageUrl || !humanImageUrl) {
     return res.status(400).json({
@@ -39,15 +40,12 @@ router.post('/api/external/tryon', requireApiKey, async (req, res) => {
   }
 
   let garmentPayload = garmentImageUrl;
-  if (blouseImageUrl) {
-    garmentPayload = { saree: garmentImageUrl, blouse: blouseImageUrl };
-  }
 
   try {
     console.log(`[External API] Try-On request: category=${category || 'N/A'}`);
 
-    // Call the pipeline with the skipUpload flag
-    const { resultImageUrl, resultB64, is_mock } = await runTryOn(garmentPayload, humanImageUrl, category, 'results/tryon-results', !!returnBase64);
+    // Call the pipeline with the skipUpload flag and explicitly disable watermarks
+    const { resultImageUrl, resultB64, is_mock } = await runTryOn(garmentPayload, humanImageUrl, category, 'results/tryon-results', !!returnBase64, false);
 
     const processingTimeMs = Date.now() - startTime;
     console.log(`[External API] ✅ Try-On completed in ${processingTimeMs}ms`);
@@ -196,39 +194,42 @@ router.post('/api/external/modify-outfit', requireApiKey, async (req, res) => {
   }
 });
 // ─────────────────────────────────────────────────────────────────────────────
-// EXT-4. Draping (Phase 1)
+// EXT-4. Draping (Vendor Catalog)
 //    POST /api/external/drape
-//    Body: { flatlayImageUrl, blouseImageUrl, category, returnBase64 }
+//    Body: { flatlayImageUrl, blouseImageUrl, category, returnBase64, modelId, customModelUrl, garmentImages }
 //    Returns: { resultImageUrl (if !returnBase64), resultBase64 (if returnBase64), processingTimeMs }
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/external/drape', requireApiKey, async (req, res) => {
   const startTime = Date.now();
-  const { flatlayImageUrl, blouseImageUrl, category, returnBase64 } = req.body;
+  const { flatlayImageUrl, blouseImageUrl, category, returnBase64, modelId, customModelUrl, garmentImages } = req.body;
 
-  if (!flatlayImageUrl) {
+  if (!flatlayImageUrl && !garmentImages) {
     return res.status(400).json({
-      error: 'Missing required field: flatlayImageUrl.',
+      error: 'Missing required field: Provide either flatlayImageUrl or garmentImages.',
     });
   }
 
-  // The default AI standing model for catalog draping
-  const DEFAULT_MODEL_URL = "https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default_model.jpg";
+  // 1. Custom URL -> 2. Specific Model ID -> 3. Random Category Fallback
+  const targetModelUrl = customModelUrl ? customModelUrl : getModelResolution(modelId, category);
 
-  let garmentPayload = flatlayImageUrl;
-  if (blouseImageUrl) {
+  // If the developer passes a full garmentImages object, use it directly. 
+  // Otherwise, fall back to the old string-based URLs.
+  let garmentPayload = garmentImages || flatlayImageUrl;
+  if (!garmentImages && blouseImageUrl) {
     garmentPayload = { saree: flatlayImageUrl, blouse: blouseImageUrl };
   }
 
   try {
-    console.log(`[External API] Drape request: category=${category || 'SAREE'}`);
+    console.log(`[External API] Drape request: category=${category || 'SAREE'}, model=${customModelUrl ? 'CUSTOM' : (modelId || 'RANDOM_FALLBACK')}`);
 
-    // Call the pipeline forcing it to use the default standing model, saving to 'vendor-drapes'
+    // Call the pipeline with the resolved model, saving to 'vendor-drapes', and explicitly disable watermarks
     const { resultImageUrl, resultB64, is_mock } = await runTryOn(
       garmentPayload, 
-      DEFAULT_MODEL_URL, 
+      targetModelUrl, 
       category || 'SAREE', 
       'vendor-drapes', 
-      !!returnBase64
+      !!returnBase64,
+      false // Explicitly disable watermark for external draping
     );
 
     const processingTimeMs = Date.now() - startTime;

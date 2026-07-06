@@ -3,8 +3,18 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 const { JWT_SECRET } = require('../middleware/auth');
+const rateLimit = require('express-rate-limit');
 
 const router = express.Router();
+
+// Strict Rate Limiter for Login (10 attempts per 15 minutes)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  message: { error: 'Too many login attempts from this IP. Please try again after 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // ─── VENDOR REGISTRATION ───
 router.post('/vendor/register', async (req, res) => {
@@ -54,7 +64,7 @@ router.post('/vendor/register', async (req, res) => {
 });
 
 // ─── VENDOR LOGIN ───
-router.post('/vendor/login', async (req, res) => {
+router.post('/vendor/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
