@@ -511,10 +511,11 @@ async function generateFrontView(garmentImageUrl) {
  * @param {string|object} garmentPayload - String URL or JSON string containing {saree, blouse}
  * @param {string} humanImageUrl
  * @param {string} category - Category of the garment
- * @param {boolean} skipUpload - If true, skips uploading to Supabase
+ * @param {boolean} applyWatermark - If false, forcefully skips watermark (e.g. for Phase 1 catalog drapes)
+ * @param {string|null} ownerVendorId - Used to check premium watermark-skipping feature for Phase 2
  * @returns {object} { resultImageUrl, resultB64, is_mock }
  */
-async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targetFolder = 'results/tryon-results', skipUpload = false, applyWatermark = true) {
+async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targetFolder = 'results/tryon-results', skipUpload = false, applyWatermark = true, ownerVendorId = null) {
   if (!garmentPayload || !humanImageUrl) {
     throw new Error('Missing required arguments: garmentPayload and humanImageUrl.');
   }
@@ -580,7 +581,9 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
     let resultImageUrl = null;
     if (!skipUpload) {
       if (applyWatermark) {
-        resultB64 = await applyWatermarkToBase64(resultB64);
+        // Process watermark (will skip if vendor has premium config)
+        const { processWatermark } = require('./services/watermarkManager');
+        resultB64 = await processWatermark(resultB64, ownerVendorId);
       }
 
       console.log(`[Pipeline] Uploading try-on result to Supabase folder: ${targetFolder}...`);

@@ -124,6 +124,7 @@ model ClientConfig {
   vendorId          String   @unique @map("vendor_id")
   vendor            Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   allowedCategories String[] @map("allowed_categories") // e.g., ["SAREE", "LEHANGA"]
+  skipWatermark     Boolean  @default(false) @map("skip_watermark")
   
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")

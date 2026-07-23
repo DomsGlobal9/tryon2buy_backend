@@ -267,7 +267,7 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
 
     let result;
     try {
-      result = await runTryOn(tryOnPayload, human_image_url, category, target_folder || 'results/tryon-results', false, applyWatermark);
+      result = await runTryOn(tryOnPayload, human_image_url, category, target_folder || 'results/tryon-results', false, applyWatermark, ownerVendorId);
     } catch (pipelineErr) {
       // If AI fails, update record to FAILED
       await prisma.asset.update({
@@ -521,11 +521,11 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
     const targetBgBase64 = Buffer.from(await bgResponse.arrayBuffer()).toString('base64');
 
     // 3. Call pipeline (prompt also resolved from prompts.js)
-    const { changeBackgroundWithGemini, applyWatermarkToBase64 } = require('../pipeline');
+    const { changeBackgroundWithGemini } = require('../pipeline');
     let resultB64 = await changeBackgroundWithGemini(personBase64, targetBgBase64, bg.prompt);
 
-    // Always apply watermark because background change is strictly a Customer Try-On feature
-    resultB64 = await applyWatermarkToBase64(resultB64);
+    const { processWatermark } = require('../services/watermarkManager');
+    resultB64 = await processWatermark(resultB64, ownerVendorId);
 
     // 4. Upload to Supabase
     const { uploadBase64ToSupabase } = require('../storage');
@@ -626,11 +626,11 @@ router.post('/api/tryon/modify-outfit', optionalAuthenticateUser, async (req, re
     const personBase64 = Buffer.from(await imgResponse.arrayBuffer()).toString('base64');
 
     // 2. Call pipeline (prompt resolved from prompts.js)
-    const { modifyOutfitWithGemini, applyWatermarkToBase64 } = require('../pipeline');
+    const { modifyOutfitWithGemini } = require('../pipeline');
     let resultB64 = await modifyOutfitWithGemini(personBase64, mod.prompt);
 
-    // Always apply watermark because outfit modification is strictly a Customer Try-On feature
-    resultB64 = await applyWatermarkToBase64(resultB64);
+    const { processWatermark } = require('../services/watermarkManager');
+    resultB64 = await processWatermark(resultB64, ownerVendorId);
 
     // 3. Upload to Supabase
     const { uploadBase64ToSupabase } = require('../storage');
