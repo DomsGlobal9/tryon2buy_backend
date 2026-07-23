@@ -253,19 +253,33 @@ Faithfully reproduce every detail of the saree draping. Preserve the complete pa
 CRITICAL BORDER RULE (MANDATORY): The pallu MUST stop exactly at the woven zari border. DO NOT invent or extend any plain fabric below the border to touch the floor. There must be ZERO plain fabric hanging beneath the bottom horizontal border. If the border ends above the floor, leave it hanging in the air. Do NOT draw a fabric train on the floor.`,
   
   'LEHANGA': `THE LEHANGA SET (from Garment Reference):
-Faithfully reproduce the 3-piece Lehenga set. Preserve the exact volume, heavy flare, and pleating of the Lehenga skirt. Reproduce the exact cut, neckline, and sleeve length of the Choli (blouse). If a Dupatta is present in the reference, drape it exactly as shown across the shoulder or arms. Transfer the exact color palette, heavy embroidery, beadwork, and borders.`,
+Faithfully reproduce the Lehenga set. 
+1. SKIRT (Lehenga): Preserve the exact volume, heavy flare, and pleating of the Lehenga skirt from the reference. Transfer the exact borders, embroidery, and fabric texture.
+2. BLOUSE (Choli): Reproduce the exact cut, neckline, and sleeve length of the top/blouse. 
+3. DUPATTA RULE (CRITICAL): Carefully analyze the Garment Reference. If a Dupatta (scarf/veil) is explicitly shown in the reference images, you MUST drape it elegantly across the shoulder or arms exactly matching its pattern, color, and border. IF NO DUPATTA IS SHOWN IN THE REFERENCE, YOU MUST NOT INVENT OR GENERATE A DUPATTA. Leave the shoulders and arms completely free of any extra draped fabric. Do not hallucinate a dupatta if one is missing.`,
   
   'ANARKALI': `THE ANARKALI SUIT (from Garment Reference):
-Faithfully reproduce the Anarkali suit. Preserve the long, frock-style flared silhouette from the waist down, maintaining the exact fabric volume, weight, and drape. Reproduce the fitted bodice, neckline, and sleeves exactly. Preserve the churidar (bottoms) and replicate the exact placement of all embroidery, zari work, and borders.`,
+Faithfully reproduce the Anarkali suit. 
+1. SILHOUETTE: Preserve the long, frock-style flared silhouette from the waist down, maintaining the exact fabric volume, weight, and drape. 
+2. TOP: Reproduce the fitted bodice, neckline, and sleeves exactly. 
+3. BOTTOMS: Preserve the churidar/pants as shown. 
+4. DUPATTA RULE (CRITICAL): Carefully analyze the Garment Reference. If a Dupatta (scarf/veil) is explicitly shown in the reference images, you MUST drape it elegantly across the shoulder or neck exactly matching its pattern, color, and border. IF NO DUPATTA IS SHOWN IN THE REFERENCE, YOU MUST NOT INVENT OR GENERATE A DUPATTA. Leave the shoulders and chest completely free of any extra draped fabric.`,
   
   'SHARARA': `THE SHARARA SUIT (from Garment Reference):
-Faithfully reproduce the Sharara suit. It is critical to maintain the unique wide, flared, ruffled structure of the Sharara pants from the knee down. Preserve the exact length, side slits, and neckline of the Kurti (tunic). Replicate the Dupatta drape perfectly. Transfer the exact color palette, fabric texture, and intricate embroidery.`,
+Faithfully reproduce the Sharara suit. 
+1. BOTTOMS: It is critical to maintain the unique wide, flared, ruffled structure of the Sharara pants from the knee down. 
+2. TOP: Preserve the exact length, side slits, and neckline of the Kurti (tunic). 
+3. DUPATTA RULE (CRITICAL): Carefully analyze the Garment Reference. If a Dupatta (scarf/veil) is explicitly shown in the reference images, you MUST drape it elegantly across the shoulder or neck exactly matching its pattern, color, and border. IF NO DUPATTA IS SHOWN IN THE REFERENCE, YOU MUST NOT INVENT OR GENERATE A DUPATTA. Leave the shoulders and chest completely free of any extra draped fabric.`,
   
   'KURTHI': `THE KURTHI SET (from Garment Reference):
-Faithfully reproduce the Kurthi outfit. Preserve the exact length of the tunic, the depth of the side slits, the neckline, and the sleeve style. If bottoms (leggings, palazzos, or pants) or a dupatta are visible, reproduce them exactly. Transfer the exact fabric material, print patterns, and thread work.`,
+Faithfully reproduce the Kurthi outfit. 
+1. TOP: Preserve the exact length of the tunic, the depth of the side slits, the neckline, and the sleeve style. 
+2. BOTTOMS: If bottoms (leggings, palazzos, or pants) are visible, reproduce them exactly. 
+3. DUPATTA RULE (CRITICAL): Carefully analyze the Garment Reference. If a Dupatta (scarf/veil) is explicitly shown in the reference images, you MUST drape it elegantly across the shoulder or neck exactly matching its pattern, color, and border. IF NO DUPATTA IS SHOWN IN THE REFERENCE, YOU MUST NOT INVENT OR GENERATE A DUPATTA. Leave the shoulders and chest completely free of any extra draped fabric.`,
   
   'DEFAULT': `THE OUTFIT (from Garment Reference):
-Faithfully reproduce every detail of the outfit. Preserve the exact silhouette, neckline, sleeve style, and pant/skirt structure. Transfer the exact color palette, weave pattern, and embroidery. The outfit must conform naturally to the customer's body without altering the customer's proportions.`
+Faithfully reproduce every detail of the outfit. Preserve the exact silhouette, neckline, sleeve style, and pant/skirt structure. Transfer the exact color palette, weave pattern, and embroidery. The outfit must conform naturally to the customer's body without altering the customer's proportions.
+DUPATTA RULE (CRITICAL): Carefully analyze the Garment Reference. If a Dupatta (scarf/veil) is explicitly shown in the reference images, drape it exactly. IF NO DUPATTA IS SHOWN, YOU MUST NOT INVENT OR GENERATE ONE.`
 };
 
 /**
@@ -278,6 +292,78 @@ function getCategoryPrompt(category) {
   return CATEGORY_PROMPTS[normalizedCat] || CATEGORY_PROMPTS['DEFAULT'];
 }
 
+/**
+ * Assemble the full, highly-detailed global prompt for Gemini.
+ * Injects category instructions and blouse logic automatically.
+ * @param {string} category 
+ * @param {boolean} hasBlouse 
+ * @returns {string} The full prompt string
+ */
+function getFullTryOnPrompt(category, hasBlouse) {
+  const isSaree = (!category || category.toUpperCase() === 'SAREE');
+  const categoryInstruction = getCategoryPrompt(category);
+  
+  let blouseInstruction = '';
+  if (isSaree) {
+    blouseInstruction = hasBlouse
+      ? `\nTHE BLOUSE (from Blouse Reference — separate image):
+A separate blouse image has been provided (this may be a fully stitched blouse or an unstitched flat piece of fabric). 
+1. Transfer the exact fabric texture, color, and embroidery from this Blouse Reference image.
+2. If the reference is unstitched flat fabric, you MUST construct a standard, modest regular neckline (strictly NO collar necks) with standard half-sleeves.
+3. If the reference is a stitched blouse, copy its exact neckline and sleeves (but NEVER invent a collar if one isn't clearly there). 
+The blouse must be tailored to fit the customer's body naturally. Ignore any blouse visible in the Saree Reference.\n`
+      : `\nTHE BLOUSE (No separate image provided):
+CRITICAL: Analyze the Saree Reference image carefully.
+1. IF A BLOUSE IS VISIBLE: You MUST copy its exact neckline, sleeve length, color, fabric texture, and embroidery. Do NOT redesign it. Do NOT invent new patterns. Reproduce the visible blouse with 100% pixel-perfect accuracy.
+2. IF NO BLOUSE IS VISIBLE (e.g. folded fabric flat-lay): You MUST generate a modest, matching blouse (standard round neckline, half-sleeves) that complements the saree. Do NOT leave the customer bare.\n`;
+  }
+
+  return `You are a professional fashion photographer conducting a virtual fitting session for Indian ethnic wear. The customer walked into your fitting room and put on the outfit from the garment reference. Your job is to photograph them wearing it — nothing else changes about the person.
+
+═══════════════════════════════════════════════════════════════════
+RULE #1 — ABSOLUTE IDENTITY LOCK (HIGHEST PRIORITY — OVERRIDES ALL OTHER INSTRUCTIONS)
+═══════════════════════════════════════════════════════════════════
+The customer's face is FORENSIC EVIDENCE. You are NOT allowed to alter it in any way.
+
+EXPRESSION LOCK:
+- If the customer is NOT smiling → the output must NOT smile. No smile. No micro-smile. No lip curl. Zero teeth visible unless teeth were already visible in the input.
+- If the customer IS smiling → preserve that exact smile. Same tooth visibility, same lip curvature, same crow's feet.
+- Do NOT "improve" the expression. Do NOT make them look "happier" or more "photogenic." The expression must be a forensic copy of the input.
+
+FACE LOCK:
+- Same bone structure, same jawline, same cheek contour, same nose shape, same eyebrow arch and thickness.
+- Same eye shape, same iris color, same eyelid crease, same under-eye texture (dark circles, lines — keep them).
+- Same skin texture with visible pores, blemishes, fine lines, and natural imperfections. Do NOT smooth, blur, or airbrush the skin.
+- Same makeup — if they have kajal, keep kajal. If they have no makeup, keep no makeup. Do NOT add or remove makeup.
+
+BODY LOCK:
+- Same body shape, proportions, weight, and posture. The outfit conforms to THEIR body — never reshape the body to fit the outfit.
+- Same skin tone uniformly across face, neck, arms, hands, and stomach — no lightening, no darkening, no evening out.
+- Hands and arms must remain anatomically natural — visible knuckle creases, natural finger curvature, correct finger count, organic skin folds.
+
+HAIR LOCK:
+- Same hairstyle, volume, parting, color, and flyaway strands. Do NOT restyle, smooth, or add volume.
+
+═══════════════════════════════════════════════════════════════════
+RULE #2 — THE GARMENT & STRICT ISOLATION
+═══════════════════════════════════════════════════════════════════
+ISOLATION COMMAND: You must extract ONLY the fabric and the garment from the Garment Reference images. You MUST completely ignore and remove any mannequins, hangers, headless bodies, floor textures, flat-lay surfaces, or backgrounds present in the Garment Reference. NEVER copy the background of the clothes into the final output.
+
+${categoryInstruction}
+${blouseInstruction}
+═══════════════════════════════════════════════════════════════════
+RULE #3 — THE SCENE (BACKGROUND LOCK)
+═══════════════════════════════════════════════════════════════════
+You must strictly use the background from the CUSTOMER image (the person to dress). Keep the identical background, walls, floor, furniture, objects, and ambient lighting from the customer photo. Under absolutely no circumstances should the background from the Garment Reference appear in the final output. The garment must interact naturally with the existing light direction of the customer's scene — casting soft ground shadows, receiving ambient color spill, with natural shadow gradients where fabric meets skin.
+
+═══════════════════════════════════════════════════════════════════
+RULE #4 — PHOTOGRAPHIC QUALITY
+═══════════════════════════════════════════════════════════════════
+Shot on 85mm portrait lens, soft ambient lighting matching the customer's environment. The result must be indistinguishable from a real, unretouched photograph. Render natural skin texture with pores and fine lines. The fabric must show realistic micro-wrinkles, natural drape weight, and material-appropriate light interaction (silk sheen, cotton matte, chiffon translucency). No fused fingers, no extra digits, no warped anatomy, no plastic skin, no floating fabric edges. No beauty filters. No airbrushing.
+
+Produce exactly one final photograph.`;
+}
+
 module.exports = {
   getBackground,
   getBlouseModification,
@@ -287,5 +373,6 @@ module.exports = {
   listBlouseModifications,
   listNeckModifications,
   getCategoryPrompt,
+  getFullTryOnPrompt,
   getModelResolution
 };

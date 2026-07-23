@@ -21,9 +21,12 @@ model Vendor {
   bgChangeCredits     Int        @default(10) @map("bg_change_credits")
   blouseChangeCredits Int        @default(10) @map("blouse_change_credits")
   isUnlimited         Boolean    @default(false) @map("is_unlimited")
+  gatewayApiKey       String?    @map("gateway_api_key")
 
   garments            Garment[]
   assets              Asset[]
+  products            Product[]
+  clientConfig        ClientConfig?
 
   @@map("tryon_vendors")
 }
@@ -82,6 +85,8 @@ model Asset {
   parentRelations    AssetRelation[] @relation("ChildAsset")
   childRelations     AssetRelation[] @relation("ParentAsset")
 
+  products           Product[]
+
   @@map("tryon_assets")
 }
 
@@ -111,4 +116,37 @@ model GuestLimit {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("tryon_guest_limits")
+}
+
+// ─── 7. CLIENT CONFIGURATION (Business rules per vendor) ───
+model ClientConfig {
+  id                String   @id @default(uuid())
+  vendorId          String   @unique @map("vendor_id")
+  vendor            Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  allowedCategories String[] @map("allowed_categories") // e.g., ["SAREE", "LEHANGA"]
+  
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("tryon_client_configs")
+}
+
+// ─── 8. PRODUCT (E-Commerce Catalog Item) ───
+model Product {
+  id               String   @id @default(uuid())
+  vendorId         String   @map("vendor_id")
+  vendor           Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  
+  title            String
+  description      String?  @db.Text
+  sku              String?
+  category         String   // SAREE, LEHANGA, etc.
+  
+  primaryAssetId   String   @map("primary_asset_id")
+  primaryAsset     Asset    @relation(fields: [primaryAssetId], references: [id], onDelete: Restrict)
+  
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("tryon_products")
 }

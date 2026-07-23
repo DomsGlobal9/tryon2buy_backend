@@ -10,6 +10,7 @@ const { authenticateVendor, authenticateCustomer, authenticateUser, optionalAuth
 const prisma = require('../lib/prisma');
 const upload = require('../lib/upload');
 const sharp = require('sharp');
+const { reportUsageToGateway } = require('../services/gatewayTracker');
 
 const router = express.Router();
 const DEFAULT_VENDOR_ID = 'feb21067-a3ee-4020-b388-16d3a37a29ce';
@@ -124,6 +125,8 @@ router.post('/api/tryon/generate-front-view', authenticateVendor, async (req, re
 //    Returns: { generation_id, result_image_url, is_mock }
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) => {
+  let ownerVendorId = req.userRole === 'vendor' ? req.vendorId : null;
+  const startTime = Date.now();
   try {
     const {
       mode = 'with_garment',
@@ -142,6 +145,17 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
 
     if (!['with_garment', 'without_garment'].includes(mode)) {
       return res.status(400).json({ error: 'mode must be "with_garment" or "without_garment".' });
+    }
+
+    if (!ownerVendorId && req.body.parent_generation_id) {
+       const parentAsset = await prisma.asset.findUnique({
+         where: { id: req.body.parent_generation_id }
+       });
+       if (parentAsset && parentAsset.vendorId) {
+         ownerVendorId = parentAsset.vendorId;
+       }
+    } else if (!ownerVendorId && req.body.vendorId) {
+       ownerVendorId = req.body.vendorId;
     }
 
     // --- CREDIT LIMIT LOGIC ---
@@ -284,8 +298,14 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
       result_image_url: result.resultImageUrl,
       is_mock: false,
     });
+
+    const latencyMs = Date.now() - startTime;
+    reportUsageToGateway(ownerVendorId, 'POST', '/api/tryon/generate', 200, latencyMs);
+
   } catch (err) {
     console.error('[Generate] Error:', err.message);
+    const latencyMs = typeof startTime !== 'undefined' ? Date.now() - startTime : 0;
+    reportUsageToGateway(ownerVendorId || null, 'POST', '/api/tryon/generate', 500, latencyMs);
     res.status(500).json({ error: err.message });
   }
 });
@@ -456,7 +476,16 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
     return res.status(400).json({ error: `Unknown backgroundId: ${backgroundId}` });
   }
 
+  const startTime = Date.now();
+  let ownerVendorId = req.userRole === 'vendor' ? req.vendorId : null;
   try {
+    if (!ownerVendorId && generationId) {
+      const parentAsset = await prisma.asset.findUnique({ where: { id: generationId } });
+      if (parentAsset && parentAsset.vendorId) {
+        ownerVendorId = parentAsset.vendorId;
+      }
+    }
+
     // --- CREDIT LIMIT LOGIC ---
     if (req.userRole === 'vendor') {
       const vendor = await prisma.vendor.findUnique({ where: { id: req.vendorId } });
@@ -529,9 +558,14 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
       }
     }
 
+    const latencyMs = Date.now() - startTime;
+    reportUsageToGateway(ownerVendorId, 'POST', '/api/tryon/change-background', 200, latencyMs);
+
     res.json({ success: true, url: newImageUrl, asset_id: newAsset?.id, generation_id: newAsset?.id });
   } catch (err) {
     console.error('[ChangeBackground] Error:', err.message);
+    const latencyMs = typeof startTime !== 'undefined' ? Date.now() - startTime : 0;
+    reportUsageToGateway(ownerVendorId || null, 'POST', '/api/tryon/change-background', 500, latencyMs);
     res.status(500).json({ error: err.message });
   }
 });
@@ -553,7 +587,16 @@ router.post('/api/tryon/modify-outfit', optionalAuthenticateUser, async (req, re
     return res.status(400).json({ error: `Unknown modificationType: ${modificationType}` });
   }
 
+  const startTime = Date.now();
+  let ownerVendorId = req.userRole === 'vendor' ? req.vendorId : null;
   try {
+    if (!ownerVendorId && generationId) {
+      const parentAsset = await prisma.asset.findUnique({ where: { id: generationId } });
+      if (parentAsset && parentAsset.vendorId) {
+        ownerVendorId = parentAsset.vendorId;
+      }
+    }
+
     // --- CREDIT LIMIT LOGIC ---
     if (req.userRole === 'vendor') {
       const vendor = await prisma.vendor.findUnique({ where: { id: req.vendorId } });
@@ -620,9 +663,14 @@ router.post('/api/tryon/modify-outfit', optionalAuthenticateUser, async (req, re
       }
     }
 
+    const latencyMs = Date.now() - startTime;
+    reportUsageToGateway(ownerVendorId, 'POST', '/api/tryon/modify-outfit', 200, latencyMs);
+
     res.json({ success: true, resultImageUrl: newImageUrl, asset_id: newAsset?.id, generation_id: newAsset?.id });
   } catch (err) {
     console.error('[ModifyOutfit] Error:', err.message);
+    const latencyMs = typeof startTime !== 'undefined' ? Date.now() - startTime : 0;
+    reportUsageToGateway(ownerVendorId || null, 'POST', '/api/tryon/modify-outfit', 500, latencyMs);
     res.status(500).json({ error: err.message });
   }
 });
@@ -758,6 +806,214 @@ router.post('/api/tryon/save-to-library', authenticateVendor, async (req, res) =
   } catch (err) {
     console.error('[TryOn] Save to library error:', err);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// B2B VENDOR CATALOG ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.get('/api/tryon/vendor/profile', authenticateVendor, async (req, res) => {
+  try {
+    const config = await prisma.clientConfig.findUnique({ where: { vendorId: req.vendorId } });
+    if (!config || !config.allowedCategories || config.allowedCategories.length === 0) {
+      return res.json({ allowedCategories: ['SAREE', 'LEHANGA', 'ANARKALI', 'SHARARA', 'KURTHI'] });
+    }
+    res.json({ allowedCategories: config.allowedCategories });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/tryon/catalog/generate', authenticateVendor, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { garment_image_url, category } = req.body;
+    if (!garment_image_url || !category) {
+      return res.status(400).json({ error: 'garment_image_url and category are required' });
+    }
+
+    const categoryModels = {
+      SAREE: [
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/41.jpeg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/42.jpeg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/43.jpeg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/44.jpeg'
+      ],
+      LEHANGA: [
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga1.jpg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga2.jpg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga3.jpg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga4.jpg'
+      ],
+      KURTIS: [
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/kurti/kurti1.jpg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/kurti/kurti2.jpg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/kurti/kurti3.jpg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/kurti/kurti4.jpg'
+      ],
+      ANARKALI: [
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/anarkali1.jpg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/anarkali2.jpg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/anarkali3.jpg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/anarkali4.jpg'
+      ],
+      SHARARA: [
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/sharara/shrara1.jpg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/sharara/shrara2.jpg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/sharara/shrara3.jpg',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/sharara/sharara4.jpg'
+      ]
+    };
+
+    const modelsForCategory = categoryModels[category.toUpperCase()] || categoryModels.SAREE;
+    const human_image_url = modelsForCategory[Math.floor(Math.random() * modelsForCategory.length)];
+
+    let parsedGarmentUrl = garment_image_url;
+    try {
+      if (garment_image_url.startsWith('{')) parsedGarmentUrl = JSON.parse(garment_image_url);
+    } catch (e) {}
+
+    const asset = await prisma.asset.create({
+      data: { vendorId: req.vendorId, assetType: 'TRYON_RESULT', status: 'PROCESSING', imageUrl: '' }
+    });
+
+    try {
+      const result = await runTryOn(parsedGarmentUrl, human_image_url, category, 'results/catalog-preview', false, false);
+      await prisma.asset.update({
+        where: { id: asset.id },
+        data: { imageUrl: result.resultImageUrl, status: 'COMPLETED' }
+      });
+      
+      const latencyMs = Date.now() - startTime;
+      reportUsageToGateway(req.vendorId, 'POST', '/api/tryon/catalog/generate', 200, latencyMs);
+      
+      res.json({ success: true, result_image_url: result.resultImageUrl, generation_id: asset.id });
+    } catch (pipelineErr) {
+      await prisma.asset.update({ where: { id: asset.id }, data: { status: 'FAILED' } });
+      throw pipelineErr;
+    }
+  } catch (err) {
+    const latencyMs = Date.now() - startTime;
+    reportUsageToGateway(req.vendorId, 'POST', '/api/tryon/catalog/generate', 500, latencyMs);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/tryon/catalog/save', authenticateVendor, async (req, res) => {
+  try {
+    const { generation_id, title, description, sku, category } = req.body;
+    if (!generation_id || !title || !category) {
+      return res.status(400).json({ error: 'generation_id, title, and category are required' });
+    }
+
+    const asset = await prisma.asset.findUnique({ where: { id: generation_id } });
+    if (!asset || asset.status !== 'COMPLETED') {
+      return res.status(400).json({ error: 'Invalid or incomplete generation asset' });
+    }
+
+    const product = await prisma.product.create({
+      data: {
+        vendorId: req.vendorId,
+        title,
+        description,
+        sku,
+        category,
+        primaryAssetId: asset.id
+      }
+    });
+
+    res.json({ success: true, product });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/tryon/catalog/discard', authenticateVendor, async (req, res) => {
+  try {
+    const { generation_id } = req.body;
+    if (!generation_id) {
+      return res.status(400).json({ error: 'generation_id is required' });
+    }
+
+    const asset = await prisma.asset.findUnique({ where: { id: generation_id } });
+    if (!asset || asset.vendorId !== req.vendorId) {
+      return res.status(403).json({ error: 'Unauthorized or asset not found' });
+    }
+
+    // Delete from database (storage cleanup script handles orphaned files later)
+    await prisma.asset.delete({ where: { id: generation_id } });
+
+    res.json({ success: true, message: 'Asset discarded successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/api/tryon/catalog/products', authenticateVendor, async (req, res) => {
+  try {
+    const products = await prisma.product.findMany({
+      where: { vendorId: req.vendorId },
+      include: { primaryAsset: true },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(products);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/api/tryon/catalog/products/:id', authenticateVendor, async (req, res) => {
+  try {
+    const productId = req.params.id;
+    
+    // 1. Verify ownership
+    const product = await prisma.product.findUnique({
+      where: { id: productId }
+    });
+
+    if (!product || product.vendorId !== req.vendorId) {
+      return res.status(403).json({ error: 'Unauthorized or product not found' });
+    }
+
+    const primaryAssetId = product.primaryAssetId;
+
+    if (primaryAssetId) {
+      // Find 1st-level child assets (e.g., Try-On generations)
+      const childRelations = await prisma.assetRelation.findMany({
+        where: { parentAssetId: primaryAssetId }
+      });
+      const childAssetIds = childRelations.map(r => r.childAssetId);
+
+      // Find 2nd-level child assets (e.g., Background swaps of Try-Ons)
+      let grandChildAssetIds = [];
+      if (childAssetIds.length > 0) {
+         const grandChildRelations = await prisma.assetRelation.findMany({
+           where: { parentAssetId: { in: childAssetIds } }
+         });
+         grandChildAssetIds = grandChildRelations.map(r => r.childAssetId);
+      }
+
+      // 3. Delete Product first because Asset has onDelete: Restrict
+      await prisma.product.delete({ where: { id: productId } });
+
+      // 4. Delete all child assets (cascades AssetRelations)
+      const allChildIds = [...childAssetIds, ...grandChildAssetIds];
+      if (allChildIds.length > 0) {
+        await prisma.asset.deleteMany({
+          where: { id: { in: allChildIds } }
+        });
+      }
+      
+      // 5. Delete Primary Asset
+      await prisma.asset.delete({ where: { id: primaryAssetId } });
+    } else {
+      await prisma.product.delete({ where: { id: productId } });
+    }
+
+    res.json({ success: true, message: 'Product and associated assets deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -15,7 +15,7 @@
 const fs = require('fs');
 const sharp = require('sharp');
 const { uploadBase64ToSupabase } = require('./storage');
-const { getCategoryPrompt } = require('./prompts');
+const { getFullTryOnPrompt } = require('./prompts');
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const GOOGLE_PROJECT_ID = process.env.GOOGLE_PROJECT_ID || '';
@@ -234,82 +234,31 @@ async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category
     return outputBuffer.toString('base64');
   };
 
-  console.log('[Gemini Try-On] Pre-processing images...');
-  const garmentProcessed = await augmentedResize(garmentB64);
+  console.log('[Vertex Try-On] Pre-processing images...');
+  
+  const garmentB64s = Array.isArray(garmentB64) ? garmentB64 : [garmentB64];
+  const garmentProcesseds = await Promise.all(garmentB64s.map(b64 => augmentedResize(b64)));
+  
   const personProcessed = await augmentedResize(personB64);
   const blouseProcessed = blouseB64 ? await augmentedResize(blouseB64) : null;
 
   const isSaree = (!category || category.toUpperCase() === 'SAREE');
-  const categoryInstruction = getCategoryPrompt(category);
-
-  // Only apply blouse logic if it's a Saree. If it's a Kurthi/Lehanga, ignore blouse logic to prevent hallucinated blouses over kurtis.
-  let blouseInstruction = '';
-  if (isSaree) {
-    blouseInstruction = blouseProcessed
-      ? `\nTHE BLOUSE (from Blouse Reference — separate image):
-A separate blouse image has been provided (this may be a fully stitched blouse or an unstitched flat piece of fabric). 
-1. Transfer the exact fabric texture, color, and embroidery from this Blouse Reference image.
-2. If the reference is unstitched flat fabric, you MUST construct a standard, modest regular neckline (strictly NO collar necks) with standard half-sleeves.
-3. If the reference is a stitched blouse, copy its exact neckline and sleeves (but NEVER invent a collar if one isn't clearly there). 
-The blouse must be tailored to fit the customer's body naturally. Ignore any blouse visible in the Saree Reference.\n`
-      : `\nTHE BLOUSE (No separate image provided):
-CRITICAL: Analyze the Saree Reference image carefully.
-1. IF A BLOUSE IS VISIBLE: You MUST copy its exact neckline, sleeve length, color, fabric texture, and embroidery. Do NOT redesign it. Do NOT invent new patterns. Reproduce the visible blouse with 100% pixel-perfect accuracy.
-2. IF NO BLOUSE IS VISIBLE (e.g. folded fabric flat-lay): You MUST generate a modest, matching blouse (standard round neckline, half-sleeves) that complements the saree. Do NOT leave the customer bare.\n`;
-  }
-
-  const fullPrompt = `You are a professional fashion photographer conducting a virtual fitting session for Indian ethnic wear. The customer walked into your fitting room and put on the outfit from the garment reference. Your job is to photograph them wearing it — nothing else changes about the person.
-
-═══════════════════════════════════════════════════════════════════
-RULE #1 — ABSOLUTE IDENTITY LOCK (HIGHEST PRIORITY — OVERRIDES ALL OTHER INSTRUCTIONS)
-═══════════════════════════════════════════════════════════════════
-The customer's face is FORENSIC EVIDENCE. You are NOT allowed to alter it in any way.
-
-EXPRESSION LOCK:
-- If the customer is NOT smiling → the output must NOT smile. No smile. No micro-smile. No lip curl. Zero teeth visible unless teeth were already visible in the input.
-- If the customer IS smiling → preserve that exact smile. Same tooth visibility, same lip curvature, same crow's feet.
-- Do NOT "improve" the expression. Do NOT make them look "happier" or more "photogenic." The expression must be a forensic copy of the input.
-
-FACE LOCK:
-- Same bone structure, same jawline, same cheek contour, same nose shape, same eyebrow arch and thickness.
-- Same eye shape, same iris color, same eyelid crease, same under-eye texture (dark circles, lines — keep them).
-- Same skin texture with visible pores, blemishes, fine lines, and natural imperfections. Do NOT smooth, blur, or airbrush the skin.
-- Same makeup — if they have kajal, keep kajal. If they have no makeup, keep no makeup. Do NOT add or remove makeup.
-
-BODY LOCK:
-- Same body shape, proportions, weight, and posture. The outfit conforms to THEIR body — never reshape the body to fit the outfit.
-- Same skin tone uniformly across face, neck, arms, hands, and stomach — no lightening, no darkening, no evening out.
-- Hands and arms must remain anatomically natural — visible knuckle creases, natural finger curvature, correct finger count, organic skin folds.
-
-HAIR LOCK:
-- Same hairstyle, volume, parting, color, and flyaway strands. Do NOT restyle, smooth, or add volume.
-
-═══════════════════════════════════════════════════════════════════
-RULE #2 — THE GARMENT
-═══════════════════════════════════════════════════════════════════
-${categoryInstruction}
-${blouseInstruction}
-═══════════════════════════════════════════════════════════════════
-RULE #3 — THE SCENE
-═══════════════════════════════════════════════════════════════════
-Keep the identical background, walls, floor, furniture, objects, and ambient lighting from the customer photo. The garment must interact naturally with the existing light direction — casting soft ground shadows, receiving ambient color spill, with natural shadow gradients where fabric meets skin.
-
-═══════════════════════════════════════════════════════════════════
-RULE #4 — PHOTOGRAPHIC QUALITY
-═══════════════════════════════════════════════════════════════════
-Shot on 85mm portrait lens, soft ambient lighting matching the customer's environment. The result must be indistinguishable from a real, unretouched photograph. Render natural skin texture with pores and fine lines. The fabric must show realistic micro-wrinkles, natural drape weight, and material-appropriate light interaction (silk sheen, cotton matte, chiffon translucency). No fused fingers, no extra digits, no warped anatomy, no plastic skin, no floating fabric edges. No beauty filters. No airbrushing.
-
-Produce exactly one final photograph.`;
+  const fullPrompt = getFullTryOnPrompt(category, !!blouseProcessed);
 
   // Build parts array dynamically — inject blouse reference between saree and customer
   const parts = [
     { text: fullPrompt },
-    { text: "GARMENT REFERENCE — The outfit to wear (observe the complete draping style, silhouette, and all fabric details):" },
-    { inline_data: { mime_type: "image/png", data: garmentProcessed } },
   ];
 
+  garmentProcesseds.forEach((processed, idx) => {
+    parts.push(
+      { text: `GARMENT REFERENCE ${garmentProcesseds.length > 1 ? (idx + 1) : ''} — The outfit to wear:` },
+      { inline_data: { mime_type: "image/png", data: processed } }
+    );
+  });
+
   if (isSaree && blouseProcessed) {
-    console.log('[Gemini Try-On] Blouse image detected — injecting into prompt.');
+    console.log('[Vertex Try-On] Blouse image detected — injecting into prompt.');
     parts.push(
       { text: "BLOUSE REFERENCE — The blouse to wear under the saree (use this exact neckline, sleeves, fabric, and embroidery):" },
       { inline_data: { mime_type: "image/png", data: blouseProcessed } }
@@ -327,7 +276,7 @@ Produce exactly one final photograph.`;
 
   const MAX_RETRIES = 5;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    console.log(`[Gemini Try-On] Attempt ${attempt}/${MAX_RETRIES}...`);
+    console.log(`[Vertex Try-On] Attempt ${attempt}/${MAX_RETRIES}...`);
 
     try {
       const resp = await fetch(GEMINI_URL, {
@@ -346,7 +295,7 @@ Produce exactly one final photograph.`;
         const img = parts.find(p => p.inline_data?.data || p.inlineData?.data);
         if (img) {
           const base64Data = img.inline_data?.data || img.inlineData?.data;
-          console.log('[Gemini Try-On] ✅ Try-on generation successful.');
+          console.log('[Vertex Try-On] ✅ Try-on generation successful.');
           return base64Data;
         }
 
@@ -356,14 +305,15 @@ Produce exactly one final photograph.`;
         console.log(`Safety ratings: ${safetyRatings}`);
         console.log('Raw text parts:', parts.filter(p => p.text).map(p => p.text.substring(0, 200)));
       } else if ([429, 500, 503, 504].includes(resp.status)) {
-        console.warn(`[Gemini Try-On] HTTP ${resp.status} (attempt ${attempt})`);
+        const errText = await resp.text();
+        console.warn(`[Vertex Try-On] HTTP ${resp.status} (attempt ${attempt}). Google says: ${errText.slice(0, 500)}`);
       } else {
         const errText = await resp.text();
-        throw new Error(`Gemini Try-On error ${resp.status}: ${errText.slice(0, 300)}`);
+        throw new Error(`Vertex Try-On error ${resp.status}: ${errText.slice(0, 300)}`);
       }
     } catch (err) {
-      if (err.message.includes('Gemini Try-On error')) throw err;
-      console.warn(`[Gemini Try-On] Request error (attempt ${attempt}): ${err.message}`);
+      if (err.message.includes('Vertex Try-On error')) throw err;
+      console.warn(`[Vertex Try-On] Request error (attempt ${attempt}): ${err.message}`);
     }
 
     if (attempt < MAX_RETRIES) {
@@ -374,7 +324,7 @@ Produce exactly one final photograph.`;
     }
   }
 
-  throw new Error('Gemini try-on failed after all retries.');
+  throw new Error('Vertex try-on failed after all retries.');
 }
 
 /**
@@ -606,7 +556,7 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
     let resultB64;
 
     if (isSaree) {
-      console.log('[Pipeline] Category is SAREE. Routing to Gemini 3.1 Try-On...');
+      console.log('[Pipeline] Category is SAREE. Routing to Vertex AI Try-On...');
       const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
       if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set in .env');
 
@@ -618,10 +568,13 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
       }
       resultB64 = await callGeminiTryOn(garmentB64, personB64, blouseB64, category);
     } else {
-      console.log(`[Pipeline] Category is ${category}. Routing to Vertex AI Virtual Try-On...`);
-      // For Vertex AI (Lehengas, Kurtis), stitch all uploaded garment pieces into a single reference
-      const combinedGarmentB64 = await combineImageUrlsToBase64(garmentUrls);
-      resultB64 = await callVertexTryOn([combinedGarmentB64], personB64);
+      console.log(`[Pipeline] Category is ${category}. Routing to Vertex AI Try-On...`);
+      const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+      if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set in .env');
+      
+      // For non-Saree, pass all uploaded garment pieces separately to Gemini for higher accuracy
+      const garmentB64s = await Promise.all(garmentUrls.map(url => imageUrlToBase64(url)));
+      resultB64 = await callGeminiTryOn(garmentB64s, personB64, null, category);
     }
 
     let resultImageUrl = null;
