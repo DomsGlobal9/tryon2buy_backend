@@ -12,8 +12,12 @@ model Vendor {
   id                  String     @id @default(uuid())
   email               String     @unique
   passwordHash        String     @default("") @map("password_hash")
+  role                String     @default("merchant")
   name                String?
   storeName           String?    @map("store_name")
+  companyName         String?    @map("company_name")
+  businessType        String?    @map("business_type")
+  mobileNumber        String?    @map("mobile_number")
   createdAt           DateTime   @default(now()) @map("created_at")
   updatedAt           DateTime   @updatedAt @map("updated_at")
   drapeCredits        Int        @default(10) @map("drape_credits")

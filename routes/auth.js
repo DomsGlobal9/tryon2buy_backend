@@ -66,7 +66,7 @@ router.post('/vendor/register', async (req, res) => {
 // ─── VENDOR LOGIN ───
 router.post('/vendor/login', loginLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, expectedRole } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
@@ -82,7 +82,13 @@ router.post('/vendor/login', loginLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    const token = jwt.sign({ vendorId: vendor.id, role: 'vendor' }, JWT_SECRET, { expiresIn: '7d' });
+    // Role-Based Access Control Check
+    if (expectedRole && vendor.role !== expectedRole) {
+      const portalName = expectedRole === 'b2b_client' ? 'B2B Client Portal' : 'Merchant Studio Portal';
+      return res.status(403).json({ error: `Access denied. This account does not have permission to access the ${portalName}.` });
+    }
+
+    const token = jwt.sign({ vendorId: vendor.id, role: vendor.role }, JWT_SECRET, { expiresIn: '7d' });
 
     res.json({
       success: true,
@@ -106,5 +112,58 @@ router.post('/vendor/login', loginLimiter, async (req, res) => {
 });
 
 
+// ─── VENDOR PROFILE ───
+const { authenticateVendor } = require('../middleware/auth');
+
+router.get('/vendor/profile', authenticateVendor, async (req, res) => {
+  try {
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: req.vendorId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        storeName: true,
+        companyName: true,
+        businessType: true,
+        mobileNumber: true,
+      }
+    });
+    if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
+    res.json(vendor);
+  } catch (err) {
+    console.error('[Get Profile Error]', err);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+router.put('/vendor/profile', authenticateVendor, async (req, res) => {
+  try {
+    const { companyName, businessType, mobileNumber } = req.body;
+    
+    const updatedVendor = await prisma.vendor.update({
+      where: { id: req.vendorId },
+      data: {
+        companyName,
+        businessType,
+        mobileNumber
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        storeName: true,
+        companyName: true,
+        businessType: true,
+        mobileNumber: true,
+      }
+    });
+    
+    res.json({ success: true, vendor: updatedVendor });
+  } catch (err) {
+    console.error('[Update Profile Error]', err);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
 
 module.exports = router;

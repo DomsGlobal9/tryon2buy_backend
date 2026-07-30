@@ -11,7 +11,7 @@ function authenticateVendor(req, res, next) {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== 'vendor') {
+    if (!['vendor', 'merchant', 'b2b_client'].includes(decoded.role)) {
       return res.status(403).json({ error: 'Access denied: Requires vendor role.' });
     }
     req.vendorId = decoded.vendorId;
@@ -49,7 +49,7 @@ function authenticateUser(req, res, next) {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role === 'vendor') {
+    if (['vendor', 'merchant', 'b2b_client'].includes(decoded.role)) {
       req.vendorId = decoded.vendorId;
       req.userRole = 'vendor';
     } else if (decoded.role === 'customer') {
@@ -74,7 +74,7 @@ function optionalAuthenticateUser(req, res, next) {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role === 'vendor') {
+    if (['vendor', 'merchant', 'b2b_client'].includes(decoded.role)) {
       req.vendorId = decoded.vendorId;
       req.userRole = 'vendor';
     } else if (decoded.role === 'customer') {
