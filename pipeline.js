@@ -208,7 +208,7 @@ async function callVertexTryOn(garmentB64s, personB64) {
  * @param {string} category - The category of the garment (e.g. 'SAREE', 'KURTHI')
  * @returns {string} Base64 image of the try-on result
  */
-async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category = 'SAREE') {
+async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category = 'SAREE', dupattaStyleB64 = null) {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set in .env');
 
@@ -241,9 +241,10 @@ async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category
   
   const personProcessed = await augmentedResize(personB64);
   const blouseProcessed = blouseB64 ? await augmentedResize(blouseB64) : null;
+  const dupattaStyleProcessed = dupattaStyleB64 ? await augmentedResize(dupattaStyleB64) : null;
 
   const isSaree = (!category || category.toUpperCase() === 'SAREE');
-  const fullPrompt = getFullTryOnPrompt(category, !!blouseProcessed);
+  const fullPrompt = getFullTryOnPrompt(category, !!blouseProcessed, !!dupattaStyleProcessed);
 
   // Build parts array dynamically — inject blouse reference between saree and customer
   const parts = [
@@ -262,6 +263,14 @@ async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category
     parts.push(
       { text: "BLOUSE REFERENCE — The blouse to wear under the saree (use this exact neckline, sleeves, fabric, and embroidery):" },
       { inline_data: { mime_type: "image/png", data: blouseProcessed } }
+    );
+  }
+
+  if (dupattaStyleProcessed) {
+    console.log('[Vertex Try-On] Dupatta Style image detected — injecting into prompt.');
+    parts.push(
+      { text: "DUPATTA STYLE REFERENCE — Exactly how the dupatta must be draped (shape and folds only):" },
+      { inline_data: { mime_type: "image/png", data: dupattaStyleProcessed } }
     );
   }
 
@@ -515,7 +524,7 @@ async function generateFrontView(garmentImageUrl) {
  * @param {string|null} ownerVendorId - Used to check premium watermark-skipping feature for Phase 2
  * @returns {object} { resultImageUrl, resultB64, is_mock }
  */
-async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targetFolder = 'results/tryon-results', skipUpload = false, applyWatermark = true, ownerVendorId = null) {
+async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targetFolder = 'results/tryon-results', skipUpload = false, applyWatermark = true, ownerVendorId = null, dupattaStyleUrl = null) {
   if (!garmentPayload || !humanImageUrl) {
     throw new Error('Missing required arguments: garmentPayload and humanImageUrl.');
   }
@@ -554,6 +563,13 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
     }
 
     const personB64 = await imageUrlToBase64(humanImageUrl);
+    
+    let dupattaStyleB64 = null;
+    if (dupattaStyleUrl) {
+      console.log('[Pipeline] Dupatta style reference detected — downloading...');
+      dupattaStyleB64 = await imageUrlToBase64(dupattaStyleUrl);
+    }
+    
     let resultB64;
 
     if (isSaree) {
@@ -567,7 +583,7 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
         console.log('[Pipeline] Blouse image detected — downloading...');
         blouseB64 = await imageUrlToBase64(blouseUrl);
       }
-      resultB64 = await callGeminiTryOn(garmentB64, personB64, blouseB64, category);
+      resultB64 = await callGeminiTryOn(garmentB64, personB64, blouseB64, category, dupattaStyleB64);
     } else {
       console.log(`[Pipeline] Category is ${category}. Routing to Vertex AI Try-On...`);
       const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -575,7 +591,8 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
       
       // For non-Saree, pass all uploaded garment pieces separately to Gemini for higher accuracy
       const garmentB64s = await Promise.all(garmentUrls.map(url => imageUrlToBase64(url)));
-      resultB64 = await callGeminiTryOn(garmentB64s, personB64, null, category);
+      
+      resultB64 = await callGeminiTryOn(garmentB64s, personB64, null, category, dupattaStyleB64);
     }
 
     let resultImageUrl = null;

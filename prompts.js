@@ -299,7 +299,7 @@ function getCategoryPrompt(category) {
  * @param {boolean} hasBlouse 
  * @returns {string} The full prompt string
  */
-function getFullTryOnPrompt(category, hasBlouse) {
+function getFullTryOnPrompt(category, hasBlouse, hasDupattaStyle = false) {
   const isSaree = (!category || category.toUpperCase() === 'SAREE');
   const categoryInstruction = getCategoryPrompt(category);
   
@@ -316,6 +316,15 @@ The blouse must be tailored to fit the customer's body naturally. Ignore any blo
 CRITICAL: Analyze the Saree Reference image carefully.
 1. IF A BLOUSE IS VISIBLE: You MUST copy its exact neckline, sleeve length, color, fabric texture, and embroidery. Do NOT redesign it. Do NOT invent new patterns. Reproduce the visible blouse with 100% pixel-perfect accuracy.
 2. IF NO BLOUSE IS VISIBLE (e.g. folded fabric flat-lay): You MUST generate a modest, matching blouse (standard round neckline, half-sleeves) that complements the saree. Do NOT leave the customer bare.\n`;
+  }
+
+  let dupattaInstruction = '';
+  if (hasDupattaStyle) {
+    dupattaInstruction = `\nTHE DUPATTA STYLE (from Dupatta Style Reference — separate image):
+CRITICAL BORDER RULE: A separate reference image showing exactly how to drape the Dupatta has been provided. 
+1. You MUST drape the dupatta on the customer exactly following the folds, pinning, and style shown in this Dupatta Style Reference.
+2. The fabric color, texture, and embroidery of the dupatta must perfectly match the Garment Reference outfit.
+3. Use the Dupatta Style Reference ONLY for the draping shape/style, do not copy the model or background from it.\n`;
   }
 
   return `You are a professional fashion photographer conducting a virtual fitting session for Indian ethnic wear. The customer walked into your fitting room and put on the outfit from the garment reference. Your job is to photograph them wearing it — nothing else changes about the person.
@@ -351,6 +360,7 @@ ISOLATION COMMAND: You must extract ONLY the fabric and the garment from the Gar
 
 ${categoryInstruction}
 ${blouseInstruction}
+${dupattaInstruction}
 ═══════════════════════════════════════════════════════════════════
 RULE #3 — THE SCENE (BACKGROUND LOCK)
 ═══════════════════════════════════════════════════════════════════

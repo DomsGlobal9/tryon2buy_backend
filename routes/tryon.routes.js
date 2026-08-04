@@ -137,6 +137,7 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
       catalog_product_id,
       front_view_url,
       target_folder,
+      dupatta_style_url,
     } = req.body;
 
     if (!garment_image_url || !human_image_url) {
@@ -267,7 +268,7 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
 
     let result;
     try {
-      result = await runTryOn(tryOnPayload, human_image_url, category, target_folder || 'results/tryon-results', false, applyWatermark, ownerVendorId);
+      result = await runTryOn(tryOnPayload, human_image_url, category, target_folder || 'results/tryon-results', false, applyWatermark, ownerVendorId, dupatta_style_url);
     } catch (pipelineErr) {
       // If AI fails, update record to FAILED
       await prisma.asset.update({
@@ -403,6 +404,11 @@ router.delete('/api/tryon/vendor/generations/:id', authenticateVendor, async (re
     if (!asset || asset.vendorId !== req.vendorId) {
       return res.status(404).json({ error: 'Generation not found or unauthorized.' });
     }
+
+    // Resolve foreign key constraint: delete any products that use this asset as their primary image
+    await prisma.product.deleteMany({
+      where: { primaryAssetId: req.params.id }
+    });
 
     await prisma.asset.delete({
       where: { id: req.params.id },
@@ -828,7 +834,7 @@ router.get('/api/tryon/vendor/profile', authenticateVendor, async (req, res) => 
 router.post('/api/tryon/catalog/generate', authenticateVendor, async (req, res) => {
   const startTime = Date.now();
   try {
-    const { garment_image_url, category } = req.body;
+    const { garment_image_url, category, dupatta_style_url } = req.body;
     if (!garment_image_url || !category) {
       return res.status(400).json({ error: 'garment_image_url and category are required' });
     }
@@ -841,10 +847,26 @@ router.post('/api/tryon/catalog/generate', authenticateVendor, async (req, res) 
         'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/44.jpeg'
       ],
       LEHANGA: [
-        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga1.jpg',
-        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga2.jpg',
-        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga3.jpg',
-        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga4.jpg'
+        {
+          default: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga1_default.png',
+          style_1: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga1_duppata.png',
+          style_2: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga1_default.png'
+        },
+        {
+          default: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga2_default.png',
+          style_1: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga2_duppata.png',
+          style_2: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga2_default.png'
+        },
+        {
+          default: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga3_default.png',
+          style_1: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga3_duppata.png',
+          style_2: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga3_default.png'
+        },
+        {
+          default: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga4_default.png',
+          style_1: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga4_duppatta.png',
+          style_2: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga4_default.png'
+        }
       ],
       KURTIS: [
         'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/kurti/kurti1.jpg',
@@ -867,7 +889,19 @@ router.post('/api/tryon/catalog/generate', authenticateVendor, async (req, res) 
     };
 
     const modelsForCategory = categoryModels[category.toUpperCase()] || categoryModels.SAREE;
-    const human_image_url = modelsForCategory[Math.floor(Math.random() * modelsForCategory.length)];
+    const selectedBaseModelObj = modelsForCategory[Math.floor(Math.random() * modelsForCategory.length)];
+    
+    let human_image_url = selectedBaseModelObj;
+    // Smart Model Switch Logic for Lehenga Dupatta Styles
+    if (typeof selectedBaseModelObj === 'object' && selectedBaseModelObj !== null) {
+      if (dupatta_style_url === 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/lehanga_duppatta1.jpg') {
+        human_image_url = selectedBaseModelObj.style_1;
+      } else if (dupatta_style_url === 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/lehangaduppatta2.jpg') {
+        human_image_url = selectedBaseModelObj.style_2;
+      } else {
+        human_image_url = selectedBaseModelObj.default;
+      }
+    }
 
     let parsedGarmentUrl = garment_image_url;
     try {
@@ -879,7 +913,7 @@ router.post('/api/tryon/catalog/generate', authenticateVendor, async (req, res) 
     });
 
     try {
-      const result = await runTryOn(parsedGarmentUrl, human_image_url, category, 'results/catalog-preview', false, false);
+      const result = await runTryOn(parsedGarmentUrl, human_image_url, category, 'results/catalog-preview', false, false, req.vendorId, dupatta_style_url);
       await prisma.asset.update({
         where: { id: asset.id },
         data: { imageUrl: result.resultImageUrl, status: 'COMPLETED' }
