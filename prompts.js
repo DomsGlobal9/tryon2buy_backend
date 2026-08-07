@@ -320,11 +320,12 @@ CRITICAL: Analyze the Saree Reference image carefully.
 
   let dupattaInstruction = '';
   if (hasDupattaStyle) {
-    dupattaInstruction = `\nTHE DUPATTA STYLE (from Dupatta Style Reference — separate image):
-CRITICAL BORDER RULE: A separate reference image showing exactly how to drape the Dupatta has been provided. 
-1. You MUST drape the dupatta on the customer exactly following the folds, pinning, and style shown in this Dupatta Style Reference.
-2. The fabric color, texture, and embroidery of the dupatta must perfectly match the Garment Reference outfit.
-3. Use the Dupatta Style Reference ONLY for the draping shape/style, do not copy the model or background from it.\n`;
+    dupattaInstruction = `\nTHE DUPATTA (from Dupatta Style Reference):
+CRITICAL STRUCTURAL BLUEPRINT MANDATE: A separate 'Dupatta Style Reference' image has been provided. You MUST use this image as an absolute structural blueprint for the drape.
+1. FORENSIC CLONE: Copy the EXACT drape path, pleating, and positioning of the dupatta shown in the style reference. 
+2. EXPOSED ARMS & EXACT PATH: If the style reference shows the dupatta sweeping in a deep U-shape across the front of the skirt and pinning at the shoulder (Classic Single-Shoulder Cowl), you MUST force the fabric to follow that exact path: sweeping low across the front skirt, gathering tightly at the shoulder, and flowing exclusively down the back.
+3. The customer's arms and hands MUST remain completely bare, exposed, and visible. Keep all fabric strictly confined to the torso, skirt front, shoulder, and back. Do not let any fabric hang over the arms or hands.
+4. The color, texture, and borders of the dupatta must perfectly match the Garment Reference, but the structural SHAPE must be a 1:1 clone of the Dupatta Style Reference.\n`;
   }
 
   return `You are a professional fashion photographer conducting a virtual fitting session for Indian ethnic wear. The customer walked into your fitting room and put on the outfit from the garment reference. Your job is to photograph them wearing it — nothing else changes about the person.
