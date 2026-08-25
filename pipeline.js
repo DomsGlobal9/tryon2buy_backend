@@ -208,7 +208,7 @@ async function callVertexTryOn(garmentB64s, personB64) {
  * @param {string} category - The category of the garment (e.g. 'SAREE', 'KURTHI')
  * @returns {string} Base64 image of the try-on result
  */
-async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category = 'SAREE', dupattaStyleB64 = null) {
+async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category = 'SAREE', dupattaStyleB64 = null, dupattaStyleId = null) {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set in .env');
 
@@ -244,7 +244,7 @@ async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category
   const dupattaStyleProcessed = dupattaStyleB64 ? await augmentedResize(dupattaStyleB64) : null;
 
   const isSaree = (!category || category.toUpperCase() === 'SAREE');
-  const fullPrompt = getFullTryOnPrompt(category, !!blouseProcessed, !!dupattaStyleProcessed);
+  const fullPrompt = getFullTryOnPrompt(category, !!blouseProcessed, dupattaStyleId || !!dupattaStyleProcessed);
 
   // Build parts array dynamically — inject blouse reference between saree and customer
   const parts = [
@@ -322,7 +322,7 @@ async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category
       }
     } catch (err) {
       if (err.message.includes('Vertex Try-On error')) throw err;
-      console.warn(`[Vertex Try-On] Request error (attempt ${attempt}): ${err.message}`);
+      console.warn(`[Vertex Try-On] Request error (attempt ${attempt}): ${err.message} | Cause: ${err.cause?.code || err.cause?.message || 'Unknown'}`);
     }
 
     if (attempt < MAX_RETRIES) {
@@ -565,9 +565,16 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
     const personB64 = await imageUrlToBase64(humanImageUrl);
     
     let dupattaStyleB64 = null;
+    let dupattaStyleId = null;
     if (dupattaStyleUrl) {
       console.log('[Pipeline] Dupatta style reference detected — downloading...');
       dupattaStyleB64 = await imageUrlToBase64(dupattaStyleUrl);
+      
+      if (dupattaStyleUrl === 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/lehanga_duppatta1.jpg') {
+        dupattaStyleId = 'style_1';
+      } else if (dupattaStyleUrl === 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/lehangaduppatta2.jpg') {
+        dupattaStyleId = 'style_2';
+      }
     }
     
     let resultB64;
@@ -583,7 +590,7 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
         console.log('[Pipeline] Blouse image detected — downloading...');
         blouseB64 = await imageUrlToBase64(blouseUrl);
       }
-      resultB64 = await callGeminiTryOn(garmentB64, personB64, blouseB64, category, dupattaStyleB64);
+      resultB64 = await callGeminiTryOn(garmentB64, personB64, blouseB64, category, dupattaStyleB64, dupattaStyleId);
     } else {
       console.log(`[Pipeline] Category is ${category}. Routing to Vertex AI Try-On...`);
       const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -592,7 +599,7 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
       // For non-Saree, pass all uploaded garment pieces separately to Gemini for higher accuracy
       const garmentB64s = await Promise.all(garmentUrls.map(url => imageUrlToBase64(url)));
       
-      resultB64 = await callGeminiTryOn(garmentB64s, personB64, null, category, dupattaStyleB64);
+      resultB64 = await callGeminiTryOn(garmentB64s, personB64, null, category, dupattaStyleB64, dupattaStyleId);
     }
 
     let resultImageUrl = null;
@@ -746,7 +753,7 @@ async function modifyOutfitWithGemini(personBase64, prompt) {
       }
     } catch (err) {
       if (err.message.includes('Gemini error')) throw err;
-      console.warn(`[Gemini] Request error (attempt ${attempt}): ${err.message}`);
+      console.warn(`[Gemini] Request error (attempt ${attempt}): ${err.message} | Cause: ${err.cause?.code || err.cause?.message || 'Unknown'}`);
     }
 
     if (attempt < MAX_RETRIES) {

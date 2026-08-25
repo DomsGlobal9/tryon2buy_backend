@@ -22,18 +22,18 @@ const BACKGROUND_PROMPTS = {
   },
   bg3: {
     name: 'Luxury Boutique',
-    imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg3.png',
-    prompt: `Place the person in the luxury fashion boutique. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally in the open floor space. Match premium indoor lighting and floor reflections. Preserve face, body, and outfit details exactly. Do not alter clothing colors or textures.`
+    imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg13.png',
+    prompt: `Place the person in a modern luxury fashion space. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the stylish floor. Match the soft, flattering studio-like lighting, high-end interior design, and subtle floor reflections. Preserve all facial features, pose, and outfit details exactly. Do not alter clothing colors or textures.`
   },
   bg4: {
     name: 'Hotel Lobby',
-    imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg4.png',
-    prompt: `Place the person in the luxury hotel lobby. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the marble walkway. Match elegant warm lighting, floor reflections, and premium fashion campaign aesthetics. Preserve all facial and clothing details exactly. Do not alter clothing colors or textures.`
+    imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg12.png',
+    prompt: `Place the person in an elegant, luxurious interior space. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the polished floor. Match the warm, premium interior lighting, floor reflections, and upscale architectural ambience. Preserve all facial features, pose, and outfit details exactly. Do not alter clothing colors or textures.`
   },
   bg5: {
     name: 'Floral Archway',
-    imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg5.jpg',
-    prompt: `Place the person under a beautiful arched Mughal-style corridor. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the intricately patterned tiled floor. Match the warm natural lighting, painted floral wall frescoes, hanging brass lanterns, and lush pink bougainvillea flowers framing the entrance. Preserve all facial features, pose, and outfit details exactly. Do not alter clothing colors or textures.`
+    imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg14.png',
+    prompt: `Place the person in a stunning, scenic outdoor pathway. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the path. Match the beautiful natural daylight, vibrant environmental colors, soft shadows, and deep atmospheric perspective of the lush surroundings. Preserve all facial features, pose, and outfit details exactly. Do not alter clothing colors or textures.`
   },
   bg6: {
     name: 'Golden Palace',
@@ -47,8 +47,8 @@ const BACKGROUND_PROMPTS = {
   },
   bg8: {
     name: 'Beach Resort',
-    imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg8.png',
-    prompt: `Place the person at a luxurious tropical beach resort. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the light stone pathway beside the sandy beach. Match the bright, sunny outdoor lighting, turquoise ocean water in the background, palm trees casting shadows, and the wooden thatched-roof structure on the right. Preserve all facial features, pose, and outfit details exactly. Do not alter clothing colors or textures.`
+    imageUrl: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/bg11.png',
+    prompt: `Place the person at a beautiful, scenic outdoor location. STRICT DEPTH RULE: the person must stand at a fixed depth position that is exactly two steps behind the nearest foreground point of the scene — never in the foreground, never far in the background. Lock this depth strictly and do not vary it. The person must be centered horizontally on the ground. Match the beautiful natural outdoor lighting, atmospheric depth, and serene background environment. Preserve all facial features, pose, and outfit details exactly. Do not alter clothing colors or textures.`
   }
 };
 
@@ -195,10 +195,10 @@ const MODEL_PROMPTS = {
   'lehanga-4': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/lehanga/lehanga4.jpg',
   
   // ANARKALI models
-  'anarkali-1': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/anarkali/anarkali1.jpg',
-  'anarkali-2': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/anarkali/anarkali2.jpg',
-  'anarkali-3': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/anarkali/anarkali3.jpg',
-  'anarkali-4': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/anarkali/anarkali4.jpg',
+  'anarkali-1': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/ChatGPT%20Image%20Aug%2020,%202026,%2005_55_11%20PM.png',
+  'anarkali-2': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/ChatGPT%20Image%20Aug%2020,%202026,%2005_55_23%20PM.png',
+  'anarkali-3': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/ChatGPT%20Image%20Aug%2020,%202026,%2005_55_52%20PM.png',
+  'anarkali-4': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/ChatGPT%20Image%20Aug%2020,%202026,%2005_56_15%20PM.png',
   
   // SHARARA models
   'sharara-1': 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default models/sharara/shrara1.jpg',
@@ -299,7 +299,7 @@ function getCategoryPrompt(category) {
  * @param {boolean} hasBlouse 
  * @returns {string} The full prompt string
  */
-function getFullTryOnPrompt(category, hasBlouse, hasDupattaStyle = false) {
+function getFullTryOnPrompt(category, hasBlouse, dupattaStyleId = null) {
   const isSaree = (!category || category.toUpperCase() === 'SAREE');
   const categoryInstruction = getCategoryPrompt(category);
   
@@ -319,12 +319,28 @@ CRITICAL: Analyze the Saree Reference image carefully.
   }
 
   let dupattaInstruction = '';
-  if (hasDupattaStyle) {
+  if (dupattaStyleId === 'style_1') {
     dupattaInstruction = `\nTHE DUPATTA (from Dupatta Style Reference):
 CRITICAL STRUCTURAL BLUEPRINT MANDATE: A separate 'Dupatta Style Reference' image has been provided. You MUST use this image as an absolute structural blueprint for the drape.
 1. FORENSIC CLONE: Copy the EXACT drape path, pleating, and positioning of the dupatta shown in the style reference. 
-2. EXPOSED ARMS & EXACT PATH: If the style reference shows the dupatta sweeping in a deep U-shape across the front of the skirt and pinning at the shoulder (Classic Single-Shoulder Cowl), you MUST force the fabric to follow that exact path: sweeping low across the front skirt, gathering tightly at the shoulder, and flowing exclusively down the back.
-3. The customer's arms and hands MUST remain completely bare, exposed, and visible. Keep all fabric strictly confined to the torso, skirt front, shoulder, and back. Do not let any fabric hang over the arms or hands.
+2. EXACT PATH (ASYMMETRICAL COWL): The dupatta MUST sweep in a deep, loose U-shape across the lower torso/waist, gather tightly at ONE single shoulder, and flow exclusively down the back. 
+3. PROHIBITED ACTIONS: NEVER drape the dupatta over both shoulders. NEVER drape the dupatta horizontally straight across the upper chest. NEVER wrap it around the neck.
+4. BARE ARMS COMMAND: The customer's arms, elbows, and hands MUST remain 100% bare, exposed, and visible. Keep all fabric strictly confined to the torso, skirt front, and shoulder.
+5. TEXTURE TRANSFER: The color, texture, and borders of the dupatta must perfectly match the Garment Reference, but the structural SHAPE must be a 1:1 clone of the Dupatta Style Reference.\n`;
+  } else if (dupattaStyleId === 'style_2') {
+    dupattaInstruction = `\nTHE DUPATTA (from Dupatta Style Reference):
+CRITICAL STRUCTURAL BLUEPRINT MANDATE: A separate 'Dupatta Style Reference' image has been provided. You MUST use this image as an absolute structural blueprint for the drape.
+1. FORENSIC CLONE: Copy the EXACT drape path, pleating, and positioning of the dupatta shown in the style reference. 
+2. EXACT PATH (FRONT PLEAT & ARM DRAPE): The dupatta MUST be pinned securely at ONE single shoulder, and fall gracefully down the front of the body on that SAME side, flowing freely over the arm and hand on that side. 
+3. PROHIBITED ACTIONS: NEVER sweep the dupatta across the front stomach or waist in a U-shape to the opposite side. It must stay on the side it is pinned to. NEVER drape it over both shoulders. NEVER wrap it around the neck.
+4. TEXTURE TRANSFER: The color, texture, and borders of the dupatta must perfectly match the Garment Reference, but the structural SHAPE must be a 1:1 clone of the Dupatta Style Reference.\n`;
+  } else if (dupattaStyleId === 'default' || dupattaStyleId === true) {
+    // Fallback if just boolean true was passed (legacy)
+    dupattaInstruction = `\nTHE DUPATTA (from Dupatta Style Reference):
+CRITICAL STRUCTURAL BLUEPRINT MANDATE: A separate 'Dupatta Style Reference' image has been provided. You MUST use this image as an absolute structural blueprint for the drape.
+1. FORENSIC CLONE: Copy the EXACT drape path, pleating, and positioning of the dupatta shown in the style reference. 
+2. EXPOSED ARMS & EXACT PATH: Force the fabric to follow that exact path shown in the reference.
+3. The customer's arms and hands MUST remain completely bare, exposed, and visible.
 4. The color, texture, and borders of the dupatta must perfectly match the Garment Reference, but the structural SHAPE must be a 1:1 clone of the Dupatta Style Reference.\n`;
   }
 
@@ -370,7 +386,17 @@ You must strictly use the background from the CUSTOMER image (the person to dres
 ═══════════════════════════════════════════════════════════════════
 RULE #4 — PHOTOGRAPHIC QUALITY
 ═══════════════════════════════════════════════════════════════════
-Shot on 85mm portrait lens, soft ambient lighting matching the customer's environment. The result must be indistinguishable from a real, unretouched photograph. Render natural skin texture with pores and fine lines. The fabric must show realistic micro-wrinkles, natural drape weight, and material-appropriate light interaction (silk sheen, cotton matte, chiffon translucency). No fused fingers, no extra digits, no warped anatomy, no plastic skin, no floating fabric edges. No beauty filters. No airbrushing.
+Shot on 85mm portrait lens, soft ambient lighting matching the customer's environment. The result must be indistinguishable from a real, unretouched photograph. Render natural skin texture with pores and fine lines. The fabric must show realistic micro-wrinkles, natural drape weight, and material-appropriate light interaction. No beauty filters. No airbrushing.
+
+═══════════════════════════════════════════════════════════════════
+RULE #5 — ANATOMY & HAND PRESERVATION (ANTI-MUTATION BINDING)
+═══════════════════════════════════════════════════════════════════
+CRITICAL: You are strictly forbidden from generating extra limbs, extra hands, or extra fingers. 
+- The person must have exactly two arms and two hands. 
+- If the customer's hands are visible, they must remain perfectly preserved with exactly five fingers per hand. 
+- You MUST perfectly mask out and erase any hands belonging to the original garment model. 
+- Do NOT blend the garment model's hands into the customer's hands. 
+- If fabric is draped near the hands, it must flow AROUND the hands naturally without causing finger fusion or amputation.
 
 Produce exactly one final photograph.`;
 }

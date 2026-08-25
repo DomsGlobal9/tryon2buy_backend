@@ -875,10 +875,10 @@ router.post('/api/tryon/catalog/generate', authenticateVendor, async (req, res) 
         'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/kurti/kurti4.jpg'
       ],
       ANARKALI: [
-        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/anarkali1.jpg',
-        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/anarkali2.jpg',
-        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/anarkali3.jpg',
-        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/anarkali4.jpg'
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/ChatGPT%20Image%20Aug%2020,%202026,%2005_55_11%20PM.png',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/ChatGPT%20Image%20Aug%2020,%202026,%2005_55_23%20PM.png',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/ChatGPT%20Image%20Aug%2020,%202026,%2005_55_52%20PM.png',
+        'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/anarkali/ChatGPT%20Image%20Aug%2020,%202026,%2005_56_15%20PM.png'
       ],
       SHARARA: [
         'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/sharara/shrara1.jpg',
