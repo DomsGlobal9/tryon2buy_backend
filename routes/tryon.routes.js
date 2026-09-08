@@ -28,7 +28,7 @@ router.post('/api/tryon/upload', upload.single('image'), async (req, res) => {
     }
 
     const folder = req.query.folder || 'garments';
-    const allowedFolders = ['garments', 'user-uploads', 'vendor-drapes', 'results'];
+    const allowedFolders = ['garments', 'user-uploads', 'human-images', 'front-views', 'vendor-drapes', 'results'];
     if (!allowedFolders.includes(folder)) {
       return res.status(400).json({ error: `Invalid folder. Use: ${allowedFolders.join(', ')}` });
     }
