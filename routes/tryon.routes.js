@@ -138,6 +138,8 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
       front_view_url,
       target_folder,
       dupatta_style_url,
+      client_request_id,
+      dock_photo_id,
     } = req.body;
 
     if (!garment_image_url || !human_image_url) {
@@ -243,6 +245,26 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
           category: category || null,
           garmentImageUrl: primaryGarmentUrl,
           humanImageUrl: human_image_url,
+          // Stamped BEFORE the AI is called, which is the whole point of it.
+          //
+          // A generation takes 20s-2min and the caller's connection frequently does not
+          // survive that: a proxy gives up, a phone changes network, a tab is backgrounded.
+          // The server carries on regardless and finishes the image, but the id of the row
+          // holding it only ever travelled in the response that was lost -- so the caller
+          // had no way to ask for it, and showed the garment instead.
+          //
+          // This key comes FROM the caller, so the caller already knows it before it sends
+          // the request. When the response is lost it polls /api/tryon/generation-status
+          // with the same key and collects the result it already paid for.
+          ...(client_request_id ? { clientRequestId: String(client_request_id) } : {}),
+          // Which photograph in the shop's dock this was generated from, so the dock can
+          // show a shop its try-ons grouped under the person they were made for -- on every
+          // device the account is signed in on, not just the one that made them.
+          //
+          // Kept in metadata rather than resolved from vendorId, because vendorId is
+          // deliberately left null here for signed-in vendors and the public shop gallery
+          // lists phase-1 assets by it. See services/dock/dock.service.js for the full note.
+          ...(dock_photo_id ? { dockPhotoId: String(dock_photo_id) } : {}),
           ...(garmentUrlsObj ? { garment_urls: garmentUrlsObj } : {}),
           ...(front_view_url ? { front_view_url } : {})
         },
@@ -270,12 +292,16 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
     try {
       result = await runTryOn(tryOnPayload, human_image_url, category, target_folder || 'results/tryon-results', false, applyWatermark, ownerVendorId, dupatta_style_url);
     } catch (pipelineErr) {
-      // If AI fails, update record to FAILED
+      // If AI fails, update record to FAILED.
+      // MERGED, not replaced. This used to assign a fresh object containing only the error,
+      // which threw away mode, phase, category and both image URLs -- and, now, the key a
+      // disconnected caller uses to find this row. A failure the caller cannot be told about
+      // is indistinguishable to them from one that is still running.
       await prisma.asset.update({
         where: { id: asset.id },
         data: {
           status: 'FAILED',
-          metadata: { errorMessage: pipelineErr.message },
+          metadata: { ...(asset.metadata || {}), errorMessage: pipelineErr.message },
         },
       });
       throw pipelineErr;
@@ -351,6 +377,82 @@ router.get('/api/tryon/vendor/generations', authenticateVendor, async (req, res)
   } catch (err) {
     console.error('[ListVendorGenerations] Error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5b. Recover a generation whose response was lost
+//    GET /api/tryon/generation-status/:clientRequestId
+//
+//    Answers one question: what happened to the generation I asked for under this key?
+//
+//    Exists because generation is synchronous and slow, so the connection carrying the
+//    result is the least reliable part of the whole flow. The work is already done and paid
+//    for by the time it is lost; this hands it over instead of letting it rot as an orphan
+//    row nobody can reach.
+//
+//    The key is supplied by the caller and is a UUID, so it is not enumerable. Nothing is
+//    disclosed here that GET /api/tryon/generations/:id does not already return without auth.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/api/tryon/generation-status/:clientRequestId', async (req, res) => {
+  try {
+    const { clientRequestId } = req.params;
+    if (!clientRequestId) {
+      return res.status(400).json({ error: 'clientRequestId is required.' });
+    }
+
+    // Bounded to a recent window. metadata is JSON with no index on it, so an unbounded
+    // lookup would scan the whole asset table on every poll; and a key older than this is
+    // not something anybody is still waiting on.
+    const since = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+    const asset = await prisma.asset.findFirst({
+      where: {
+        createdAt: { gte: since },
+        metadata: { path: ['clientRequestId'], equals: String(clientRequestId) },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!asset) {
+      // The row is written before the AI is called, so if it is missing a moment after the
+      // request, the request never arrived. The caller uses that to stop polling early
+      // rather than waiting out the full window for something that was never started.
+      return res.status(404).json({ status: 'UNKNOWN', error: 'No generation found for that request id.' });
+    }
+
+    if (asset.status === 'COMPLETED') {
+      return res.json({
+        status: 'COMPLETED',
+        generation_id: asset.id,
+        result_image_url: asset.imageUrl,
+      });
+    }
+
+    if (asset.status === 'FAILED') {
+      // The real reason is logged and kept on the row, never returned. "Image download
+      // failed: HTTP 400" or a raw Gemini refusal means nothing to a shopper and describes
+      // our internals to anyone who asks -- and this endpoint takes no auth.
+      console.error(
+        `[GenerationStatus] Reporting FAILED for asset ${asset.id}: ${asset.metadata?.errorMessage || 'unknown'}`
+      );
+      return res.json({
+        status: 'FAILED',
+        generation_id: asset.id,
+        error: 'Try-on failed.',
+      });
+    }
+
+    // Still running. imageUrl is deliberately NOT returned here -- until the result is
+    // uploaded it still holds the placeholder the row was created with, which is the
+    // customer's own photograph. Handing that back as a result is the bug this fixes.
+    return res.json({ status: 'PROCESSING', generation_id: asset.id });
+  } catch (err) {
+    // Logged in full, returned as nothing. This endpoint takes no auth, and err.message here
+    // is whatever Prisma or the driver said -- table names, column names, connection
+    // details. The caller is told only that the answer is not available.
+    console.error('[GenerationStatus] Error:', err);
+    res.status(500).json({ status: 'UNKNOWN', error: 'Status unavailable.' });
   }
 });
 
