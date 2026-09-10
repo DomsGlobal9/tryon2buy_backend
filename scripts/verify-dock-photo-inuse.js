@@ -132,6 +132,32 @@ async function run() {
   check('nor force-delete it', rivalForce.status === 404, `status ${rivalForce.status}`);
   check('it is still mine', (await listPhotos(a.token)).some(p => p.id === mine));
 
+  console.log('\n-- clearing the whole dock still clears it --');
+  /**
+   * The regression this exists to stop coming back.
+   *
+   * clear() empties the dock by calling deletePhoto in a loop. The moment deletePhoto learned
+   * to refuse a photograph in use, clear started silently skipping exactly the ones a
+   * colleague had open -- and counting them as removed anyway, because { inUse: true } is
+   * truthy. The shop pressed clear, the dock stayed, and the response said it had worked.
+   *
+   * The suites all missed it because they clear at the START of a run, before any heartbeat
+   * has marked anything. So this one adds, beats, and only then clears.
+   */
+  const kept = [];
+  for (let i = 0; i < 3; i++) kept.push(idOf(await addPhoto(a.token)));
+  for (const id of kept) await call(a.token, `/photos/${id}/touch`, { method: 'POST' });
+  // Everything in the dock, not just the three added here -- earlier sections leave some
+  // behind on purpose, and the count must describe the dock, not this paragraph.
+  const beforeClear = (await listPhotos(a.token)).length;
+  const cleared = await json(await call(a.token, '', { method: 'DELETE' }));
+  const leftBehind = await listPhotos(a.token);
+  check('clearing removes photographs even while they are in use',
+    leftBehind.length === 0, `${leftBehind.length} left behind`);
+  check('and the count it reports is the number actually removed',
+    cleared?.removed === beforeClear, `said ${cleared?.removed}, dock held ${beforeClear}`);
+
+
   console.log('\n-- two devices forcing at the same moment --');
   const contested = idOf(await addPhoto(a.token));
   const both = await Promise.all([

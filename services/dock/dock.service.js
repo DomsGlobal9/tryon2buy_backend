@@ -528,9 +528,26 @@ class DockService {
       select: { id: true }
     });
 
+    /**
+     * force, and count only what actually went.
+     *
+     * Both halves of this were wrong the moment deletePhoto learned to refuse a photograph
+     * somebody is being fitted with. Without force, "clear the dock" quietly skipped exactly
+     * the photographs a colleague had open -- and since any page holding one beats every
+     * thirty seconds, that is most of them. The shop pressed clear and the dock stayed.
+     *
+     * Because the refusal comes back as { inUse: true }, which is truthy, the old
+     * `if (await ...) removed++` counted every skipped photograph as removed. The dock
+     * reported success for work it had not done, which is worse than not doing it.
+     *
+     * Forcing is right here rather than propagating the question upward: clear is already
+     * the explicit "empty all of this" action, chosen over removing one photograph at a
+     * time. The per-photograph warning is where that question belongs, and it still asks.
+     */
     let removed = 0;
     for (const photo of photos) {
-      if (await this.deletePhoto(vendorId, photo.id)) removed++;
+      const result = await this.deletePhoto(vendorId, photo.id, { force: true });
+      if (result?.success) removed++;
     }
     return { success: true, removed };
   }
