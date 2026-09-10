@@ -16,6 +16,7 @@ const rateLimit = require('express-rate-limit');
 const { hasGoogleCredentials } = require('./pipeline');
 const authRoutes = require('./routes/auth');
 const tryonRoutes = require('./routes/tryon.routes');
+const dockRoutes = require('./routes/dock.routes');
 // NOTE: externalRoutes is intentionally NOT imported here
 
 dotenv.config();
@@ -75,6 +76,8 @@ app.get('/api/tryon/health', (req, res) => {
 
 // ── Internal Try-On Routes ────────────────────────────────────────────────────
 app.use('/', tryonRoutes);
+// The shop's photo dock. Signed-in accounts only, shared across their devices.
+app.use('/', dockRoutes);
 
 // Global Error Handler to always return JSON (prevents HTML error pages)
 app.use((err, req, res, next) => {

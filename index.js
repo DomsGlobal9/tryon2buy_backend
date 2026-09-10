@@ -9,6 +9,7 @@ const dotenv = require('dotenv');
 const { hasGoogleCredentials } = require('./pipeline');
 const authRoutes = require('./routes/auth');
 const tryonRoutes = require('./routes/tryon.routes');
+const dockRoutes = require('./routes/dock.routes');
 const externalRoutes = require('./routes/external.routes');
 
 dotenv.config();
@@ -58,6 +59,8 @@ app.get('/api/tryon/health', (req, res) => {
 
 // ── Modular API Routes ────────────────────────────────────────────────────────
 app.use('/', tryonRoutes);
+// The shop's photo dock. Signed-in accounts only, shared across their devices.
+app.use('/', dockRoutes);
 app.use('/', externalRoutes);
 
 // Global Error Handler to always return JSON (prevents HTML error pages)
