@@ -41,7 +41,11 @@ async function reportUsageToGateway(vendorId, method, endpoint, statusCode, late
         statusCode,
         latencyMs
       }),
-      // signal: AbortSignal.timeout(3000) // Fast timeout to avoid hanging
+      // Fast timeout, deliberately restored. This call is fire-and-forget and is made after
+      // every generation. Without a ceiling, a slow Gateway leaves a socket open per
+      // generation on an instance that is also serving them, and the pile-up is what makes
+      // later try-ons time out when the first few worked.
+      signal: AbortSignal.timeout(3000)
     });
 
     if (!response.ok) {
