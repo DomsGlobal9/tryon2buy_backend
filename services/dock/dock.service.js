@@ -318,18 +318,46 @@ class DockService {
     if (childIds.length === 0) {
       // Nothing to erase. Reported as done rather than as a miss: the caller asked for this
       // garment to be off the list, and it already is.
-      return { success: true, deletedResults: 0 };
+      return { success: true, deletedResults: 0, keptPublished: 0 };
     }
 
-    // A result can itself have been published as a product -- Product holds its primary asset
-    // with onDelete: Restrict, so those have to be released first. Same order deletePhoto uses.
-    await prisma.product.deleteMany({ where: { primaryAssetId: { in: childIds } } });
+    /**
+     * Anything the merchant has PUBLISHED is kept, and this is the most important line here.
+     *
+     * Publishing works by saving a try-on result to the catalogue -- /api/tryon/catalog/save
+     * takes a generation and makes it a Product's primary asset. On this database 23 of the 24
+     * products are built that way, so it is not an edge case, it is how the gallery is filled.
+     *
+     * The first version of this deleted those products to get the assets out of the way, copied
+     * from deletePhoto without asking whether it meant the same thing here. It does not.
+     * Clearing the "tried on" list is housekeeping on a twenty-minute working list; deleting a
+     * product is removing something from the shop. A merchant tidying the dock would have
+     * silently emptied their own gallery, and only found out later.
+     *
+     * So a published result keeps its asset and loses only its LINK to this garment -- which is
+     * all the tried-on list is counting, so the outfit still leaves the list exactly as asked.
+     */
+    const published = await prisma.product.findMany({
+      where: { primaryAssetId: { in: childIds } },
+      select: { primaryAssetId: true }
+    });
+    const publishedIds = new Set(published.map(p => p.primaryAssetId));
+    const disposable = childIds.filter(id => !publishedIds.has(id));
+
+    // The link goes for every result, published or not: that is what takes the outfit off the
+    // list. For the disposable ones the cascade would have done it anyway; doing it explicitly
+    // covers the published ones, whose assets are staying put.
+    await prisma.assetRelation.deleteMany({
+      where: { parentAssetId: product.primaryAssetId, childAssetId: { in: childIds } }
+    });
 
     // deleteMany rather than delete, so two devices removing the same garment at the same
     // moment both succeed instead of one of them 500ing for being second.
-    const removed = await prisma.asset.deleteMany({ where: { id: { in: childIds } } });
+    const removed = disposable.length
+      ? await prisma.asset.deleteMany({ where: { id: { in: disposable } } })
+      : { count: 0 };
 
-    return { success: true, deletedResults: removed.count };
+    return { success: true, deletedResults: removed.count, keptPublished: publishedIds.size };
   }
 
   /**

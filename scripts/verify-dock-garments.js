@@ -154,6 +154,52 @@ async function main() {
   const relations = await prisma.assetRelation.count({ where: { parentAssetId: kurti.flatAssetId } });
   check('and so are the records linking them', relations === 0, `${relations} left behind`);
 
+  console.log('\n-- CLEARING THE LIST MUST NOT EMPTY THE GALLERY --');
+
+  /**
+   * The one that matters most, and the one that was wrong first time round.
+   *
+   * A merchant fills their gallery by saving a try-on to the catalogue -- the saved product's
+   * primary asset IS the try-on result. On the live database 23 of 24 products are built that
+   * way, so "delete the try-ons behind this outfit" and "delete published products" were, as
+   * first written, the same instruction.
+   *
+   * They are not the same thing at all. Clearing the tried-on list is housekeeping on a
+   * twenty-minute working list. The gallery is the shop.
+   */
+  const shown = await makeGarment(shopA.vendorId, `${MARK} published`, 3);
+
+  // The merchant publishes one of its try-ons, exactly as /api/tryon/catalog/save does.
+  const rel = await prisma.assetRelation.findFirst({
+    where: { parentAssetId: shown.flatAssetId }, select: { childAssetId: true }
+  });
+  const galleryItem = await prisma.product.create({
+    data: {
+      vendorId: shopA.vendorId, title: `${MARK} IN THE GALLERY`,
+      category: 'SAREE', primaryAssetId: rel.childAssetId
+    }
+  });
+
+  const clear = await call(shopA.token, `/garments/${shown.productId}`, { method: 'DELETE' });
+  const clearBody = await json(clear);
+  check('clearing an outfit with published work succeeds', clear.status === 200, `status ${clear.status}`);
+
+  const galleryStill = await prisma.product.findUnique({ where: { id: galleryItem.id } });
+  check('THE PUBLISHED PRODUCT IS STILL IN THE GALLERY',
+    !!galleryStill, 'it was deleted -- the merchant just lost a listing by tidying the dock');
+  const publishedAsset = await prisma.asset.findUnique({ where: { id: rel.childAssetId } });
+  check('and the picture it is shown with still exists',
+    !!publishedAsset, 'the image behind the listing was deleted');
+  check('it reports what it kept', clearBody?.keptPublished === 1, `kept ${clearBody?.keptPublished}`);
+  check('while the unpublished try-ons did go', clearBody?.deletedResults === 2, `deleted ${clearBody?.deletedResults}`);
+
+  check('the outfit still leaves the tried-on list',
+    !(await listGarments(shopA.token)).some(g => g.id === shown.productId), 'still listed');
+  const outfitProduct = await prisma.product.findUnique({ where: { id: shown.productId } });
+  check('and the outfit is still there to be tried again', !!outfitProduct, 'the outfit went');
+
+  await prisma.product.deleteMany({ where: { id: galleryItem.id } });
+
   console.log('\n-- doing it again, and doing it twice at once --');
   const again = await call(shopA.token, `/garments/${kurti.productId}`, { method: 'DELETE' });
   check('deleting an already-empty outfit is not an error', again.status === 200, `status ${again.status}`);
