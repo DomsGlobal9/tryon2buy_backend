@@ -424,9 +424,22 @@ class DockService {
     const photo = await this._ownPhoto(vendorId, photoId);
     if (!photo) return null;
 
+    /**
+     * Two clocks, deliberately, because they answer different questions.
+     *
+     * lastUsedAt is "when was this last wanted" and drives the twenty-minute expiry.
+     * inUseAt is "is somebody looking at it RIGHT NOW" and drives the warning before a
+     * delete. A photograph picked up an hour ago and left is expired but not in use; one
+     * picked up ten seconds ago is both.
+     *
+     * touchPhoto only recorded the first, so a photograph could be deleted out from under
+     * a colleague mid-customer with no warning -- something that could not happen to a
+     * garment, which had both from the start. This makes the two consistent.
+     */
+    const now = Date.now();
     await prisma.asset.update({
       where: { id: photo.id },
-      data: { metadata: { ...(photo.metadata || {}), lastUsedAt: Date.now() } }
+      data: { metadata: { ...(photo.metadata || {}), lastUsedAt: now, inUseAt: now } }
     });
     return { success: true };
   }
@@ -438,9 +451,22 @@ class DockService {
    * behind after the photograph has been deleted would make "remove this photo" a promise
    * the dock does not keep.
    */
-  async deletePhoto(vendorId, photoId) {
+  async deletePhoto(vendorId, photoId, { force = false } = {}) {
     const photo = await this._ownPhoto(vendorId, photoId);
     if (!photo) return null;
+
+    /**
+     * Somebody is being fitted with this photograph on another device.
+     *
+     * The same guard deleteGarment has, and it belongs here more than there: deleting a
+     * garment takes an outfit off a list, deleting a PHOTOGRAPH takes away the customer
+     * standing in front of somebody. Their try-ons go with it, and so do any gallery items
+     * published from them.
+     *
+     * Reported, not refused. The shop can still say yes -- it is their dock -- but they are
+     * told what they are about to interrupt first, which is all that was missing.
+     */
+    if (!force && isInUse(photo)) return { inUse: true };
 
     const children = await this._resultsFor([photo.id]);
     const childIds = children.map(c => c.id);

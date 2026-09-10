@@ -96,8 +96,20 @@ router.post('/api/tryon/dock/photos/:id/touch', authenticateVendor, async (req, 
 /** Remove a photograph and everything generated from it. */
 router.delete('/api/tryon/dock/photos/:id', authenticateVendor, async (req, res) => {
   try {
-    const removed = await dockService.deletePhoto(req.vendorId, req.params.id);
+    // ?force=1 is the second press, after the caller has been told somebody is using it.
+    const force = req.query.force === '1' || req.query.force === 'true';
+    const removed = await dockService.deletePhoto(req.vendorId, req.params.id, { force });
     if (!removed) return res.status(404).json({ error: 'Photo not found.' });
+
+    // 409 for the same reason garments use it: the request is well formed and will succeed
+    // the moment the other device puts it down, or immediately if the caller goes ahead.
+    if (removed.inUse) {
+      return res.status(409).json({
+        error: 'Someone is being fitted with this photo right now.',
+        inUse: true
+      });
+    }
+
     res.json(removed);
   } catch (err) {
     fail(res, err, 'deletePhoto');
