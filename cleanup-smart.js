@@ -1,3 +1,20 @@
+/**
+ * SUPERSEDED by scripts/cleanup-orphans.js. Do not run this.
+ *
+ * It protects files by WHO OWNS THEM -- assets belonging to one hardcoded vendor
+ * (vendor@store.com) -- and force-wipes six folders outright. That means:
+ *
+ *   - every other vendor's drapes are deleted while their database rows survive, leaving
+ *     rows pointing at images that no longer exist
+ *   - `garments` is force-wiped, and that folder holds the Sample Materials the workspace
+ *     hardcodes -- one run silently breaks that feature
+ *   - anything uploaded moments earlier, by anyone, goes with it
+ *
+ * The replacement asks the only safe question -- is anything still pointing at this file --
+ * which the database answers for every vendor at once. It also refuses to delete anything
+ * until you pass --apply.
+ */
+
 require('dotenv').config();
 const prisma = require('./lib/prisma');
 const { createClient } = require('@supabase/supabase-js');

@@ -1,3 +1,12 @@
+/**
+ * SUPERSEDED by scripts/cleanup-orphans.js. Do not run this.
+ *
+ * This deletes EVERYTHING in results/, vendor-drapes, user-uploads and garments with no
+ * protection of any kind and no confirmation -- including live images that database rows
+ * still point at, and the hardcoded Sample Materials. It empties folders; it does not
+ * collect garbage.
+ */
+
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
 
