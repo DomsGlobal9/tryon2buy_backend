@@ -65,7 +65,7 @@ router.post('/api/external/tryon', requireApiKey, async (req, res) => {
     res.json(responsePayload);
   } catch (err) {
     console.error('[External API] Try-On failed:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -130,7 +130,7 @@ router.post('/api/external/change-background', requireApiKey, async (req, res) =
     res.json(responsePayload);
   } catch (err) {
     console.error('[External API] Background change failed:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -190,7 +190,7 @@ router.post('/api/external/modify-outfit', requireApiKey, async (req, res) => {
     res.json(responsePayload);
   } catch (err) {
     console.error('[External API] Outfit modification failed:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 // ─────────────────────────────────────────────────────────────────────────────
@@ -250,7 +250,7 @@ router.post('/api/external/drape', requireApiKey, async (req, res) => {
     res.json(responsePayload);
   } catch (err) {
     console.error('[External API] Drape failed:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 

@@ -129,7 +129,7 @@ router.post('/api/tryon/generate-front-view', authenticateVendor, async (req, re
     });
   } catch (err) {
     console.error('[GenerateFrontView] Error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -356,7 +356,7 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
     console.error('[Generate] Error:', err.message);
     const latencyMs = typeof startTime !== 'undefined' ? Date.now() - startTime : 0;
     reportUsageToGateway(ownerVendorId || null, 'POST', '/api/tryon/generate', 500, latencyMs);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -399,7 +399,7 @@ router.get('/api/tryon/vendor/generations', authenticateVendor, async (req, res)
     res.json(generations);
   } catch (err) {
     console.error('[ListVendorGenerations] Error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -532,7 +532,7 @@ router.get('/api/tryon/generations/:id', async (req, res) => {
     res.json(generation);
   } catch (err) {
     console.error('[GetGeneration] Error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -559,7 +559,7 @@ router.delete('/api/tryon/vendor/generations/:id', authenticateVendor, async (re
     res.json({ success: true, message: 'Generation deleted successfully' });
   } catch (err) {
     console.error('[DeleteVendorGeneration] Error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -604,7 +604,7 @@ router.get('/api/tryon/vendor/:vendorId/gallery', async (req, res) => {
     res.json({ vendorId, generations });
   } catch (err) {
     console.error('[VendorPublicGallery] Error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -714,7 +714,7 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
     console.error('[ChangeBackground] Error:', err.message);
     const latencyMs = typeof startTime !== 'undefined' ? Date.now() - startTime : 0;
     reportUsageToGateway(ownerVendorId || null, 'POST', '/api/tryon/change-background', 500, latencyMs);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -819,7 +819,7 @@ router.post('/api/tryon/modify-outfit', optionalAuthenticateUser, async (req, re
     console.error('[ModifyOutfit] Error:', err.message);
     const latencyMs = typeof startTime !== 'undefined' ? Date.now() - startTime : 0;
     reportUsageToGateway(ownerVendorId || null, 'POST', '/api/tryon/modify-outfit', 500, latencyMs);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -969,7 +969,8 @@ router.get('/api/tryon/vendor/profile', authenticateVendor, async (req, res) => 
     }
     res.json({ allowedCategories: config.allowedCategories });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[tryon] request failed:', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -1072,7 +1073,8 @@ router.post('/api/tryon/catalog/generate', authenticateVendor, async (req, res) 
   } catch (err) {
     const latencyMs = Date.now() - startTime;
     reportUsageToGateway(req.vendorId, 'POST', '/api/tryon/catalog/generate', 500, latencyMs);
-    res.status(500).json({ error: err.message });
+    console.error('[tryon] request failed:', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -1101,7 +1103,8 @@ router.post('/api/tryon/catalog/save', authenticateVendor, async (req, res) => {
 
     res.json({ success: true, product });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[tryon] request failed:', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -1122,7 +1125,8 @@ router.post('/api/tryon/catalog/discard', authenticateVendor, async (req, res) =
 
     res.json({ success: true, message: 'Asset discarded successfully' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[tryon] request failed:', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -1135,7 +1139,8 @@ router.get('/api/tryon/catalog/products', authenticateVendor, async (req, res) =
     });
     res.json(products);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[tryon] request failed:', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
@@ -1189,7 +1194,8 @@ router.delete('/api/tryon/catalog/products/:id', authenticateVendor, async (req,
 
     res.json({ success: true, message: 'Product and associated assets deleted successfully' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[tryon] request failed:', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
 
