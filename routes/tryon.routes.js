@@ -35,17 +35,40 @@ router.post('/api/tryon/upload', upload.single('image'), async (req, res) => {
 
     // Process image: Auto-rotate based on EXIF to fix 90-deg rotation bugs from mobile cameras,
     // and convert to a standard JPEG to ensure maximum compatibility with the AI pipeline.
-    const processedBuffer = await sharp(req.file.buffer)
-      .rotate()
-      .jpeg({ quality: 90 })
-      .toBuffer();
+    /**
+     * sharp is the real arbiter of whether this is an image.
+     *
+     * The filter above deliberately lets an unlabelled body through, because iOS sends
+     * perfectly good photographs as application/octet-stream. That bargain only holds if the
+     * decode failing is handled properly -- and it was not: every failure here became a 500
+     * carrying sharp's own words. So a shopper who picked a PDF, or whose upload was truncated
+     * on a bad signal, was told the server had broken, in a sentence written for whoever
+     * maintains the decoder.
+     *
+     * It is also a 5xx, which is what gets watched as a crash. Routine "that is not a picture"
+     * traffic sitting in with real faults is how real faults get missed.
+     */
+    let processedBuffer;
+    try {
+      processedBuffer = await sharp(req.file.buffer)
+        .rotate()
+        .jpeg({ quality: 90 })
+        .toBuffer();
+    } catch (decodeErr) {
+      // Logged in full, reported in one sentence a person can act on.
+      console.warn('[Upload] Could not decode the upload:', decodeErr.message);
+      return res.status(400).json({
+        error: 'That file is not a picture we can read. Try taking the photo again, or pick a JPEG or PNG.'
+      });
+    }
 
     const url = await uploadBufferToSupabase(processedBuffer, folder, 'jpg');
 
     res.json({ url, folder, size: processedBuffer.length });
   } catch (err) {
+    // Anything left here is ours -- storage refused, credentials wrong. Never echoed back.
     console.error('[Upload] Error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Could not save that image. Please try again.' });
   }
 });
 
@@ -401,6 +424,23 @@ router.get('/api/tryon/generation-status/:clientRequestId', async (req, res) => 
       return res.status(400).json({ error: 'clientRequestId is required.' });
     }
 
+    /**
+     * A key that cannot name a row we wrote is a miss, not a fault.
+     *
+     * Postgres refuses a null byte in a text comparison and raises, so the key went in raw and
+     * came back as a 500 -- the server reporting itself broken for a request that should
+     * simply not have matched anything. The dock service learned this already and has
+     * isPlausibleId for it; this endpoint was written without the same guard.
+     *
+     * Length is bounded for the same reason the window is: this key is compared against an
+     * unindexed JSON field, so an absurd one is work with no possible answer.
+     */
+    const key = String(clientRequestId);
+    // eslint-disable-next-line no-control-regex
+    if (key.length > 200 || /[\u0000-\u001f]/.test(key)) {
+      return res.status(404).json({ status: 'UNKNOWN', error: 'No generation found for that request id.' });
+    }
+
     // Bounded to a recent window. metadata is JSON with no index on it, so an unbounded
     // lookup would scan the whole asset table on every poll; and a key older than this is
     // not something anybody is still waiting on.
@@ -409,7 +449,7 @@ router.get('/api/tryon/generation-status/:clientRequestId', async (req, res) => 
     const asset = await prisma.asset.findFirst({
       where: {
         createdAt: { gte: since },
-        metadata: { path: ['clientRequestId'], equals: String(clientRequestId) },
+        metadata: { path: ['clientRequestId'], equals: key },
       },
       orderBy: { createdAt: 'desc' },
     });

@@ -15,3 +15,6 @@ Thumbs.db
 EXTERNAL_API_DOCS.md
 Tryon2Buy.postman_collection.json
 MICROSERVICE_SCALING_PLAN.md
+
+# Local Claude Code settings — per-machine, not part of the app
+.claude/
