@@ -377,6 +377,15 @@ CRITICAL STRUCTURAL BLUEPRINT MANDATE: A separate 'Dupatta Style Reference' imag
   return `You are a professional fashion photographer conducting a virtual fitting session for Indian ethnic wear. The customer walked into your fitting room and put on the outfit from the garment reference. Your job is to photograph them wearing it — nothing else changes about the person.
 
 ═══════════════════════════════════════════════════════════════════
+RULE #0 — WHO TO DRESS (READ FIRST — THE CUSTOMER PHOTO MAY SHOW MORE THAN ONE PERSON)
+═══════════════════════════════════════════════════════════════════
+The customer photo may be a solo picture or a GROUP photo (family, friends, a couple). Either way, you dress EXACTLY ONE person — "the customer" in every rule below:
+- If the photo shows one person, that person is the customer.
+- If it shows several people, the customer is the most prominent WOMAN: the woman who is largest in the frame, and if two are similar in size, the one nearest the centre. The garment is women's wear, so it goes on a woman, never on a man or a child.
+- If there is no woman in the photo at all, dress the most prominent adult.
+EVERYONE ELSE in the photo stays EXACTLY as they are — same face, same clothes, same pose, same position. Do not dress them, restyle them, remove them, crop them out, or change their outfits in any way. The group, the framing and the background are unchanged; only the customer's clothing changes.
+
+═══════════════════════════════════════════════════════════════════
 RULE #1 — ABSOLUTE IDENTITY LOCK (HIGHEST PRIORITY — OVERRIDES ALL OTHER INSTRUCTIONS)
 ═══════════════════════════════════════════════════════════════════
 The customer's face is FORENSIC EVIDENCE. You are NOT allowed to alter it in any way.
@@ -405,24 +414,31 @@ RULE #2 — THE GARMENT & STRICT ISOLATION
 ═══════════════════════════════════════════════════════════════════
 ISOLATION COMMAND: You must extract ONLY the fabric and the garment from the Garment Reference images. You MUST completely ignore and remove any mannequins, hangers, headless bodies, floor textures, flat-lay surfaces, or backgrounds present in the Garment Reference. NEVER copy the background of the clothes into the final output.
 
+COLOUR LOCK (as strict as the identity lock): The garment's colours are the product being sold, so they must match the Garment Reference EXACTLY.
+- Same hue: a red stays that red, not orange-red, pink or maroon. A royal blue stays royal blue, not navy or teal. A magenta stays magenta.
+- Same saturation: a vivid, vibrant colour stays exactly as vivid. Do NOT mute it, desaturate it, dull it, "tone it down" or make it more subtle or tasteful.
+- Same brightness of the dye: do not darken or lighten the fabric's actual colour.
+- Every colour region keeps its own colour — the body, the border, the pallu, the zari, the print, the embroidery thread. Do not blend neighbouring colours together or change any one of them.
+Lighting may add natural shading — darker in the folds and on the side away from the light, brighter on the lit side — but that shading changes only how light or dark each part looks, NEVER the colour itself. The fabric must look like the exact same dye as the reference seen under clean, neutral light.
+
 ${categoryInstruction}
 ${blouseInstruction}
 ${dupattaInstruction}
 ═══════════════════════════════════════════════════════════════════
 RULE #3 — THE SCENE (BACKGROUND LOCK)
 ═══════════════════════════════════════════════════════════════════
-You must strictly use the background from the CUSTOMER image (the person to dress). Keep the identical background, walls, floor, furniture, objects, and ambient lighting from the customer photo. Under absolutely no circumstances should the background from the Garment Reference appear in the final output. The garment must interact naturally with the existing light direction of the customer's scene — casting soft ground shadows, receiving ambient color spill, with natural shadow gradients where fabric meets skin.
+You must strictly use the background from the CUSTOMER image (the person to dress). Keep the identical background, walls, floor, furniture, objects, and ambient lighting from the customer photo. Under absolutely no circumstances should the background from the Garment Reference appear in the final output. The garment must interact naturally with the existing light direction of the customer's scene — casting soft ground shadows, with natural shadow gradients where fabric meets skin. The scene's lighting affects only how light or dark the fabric appears; it must NOT tint the garment with the room's colours (see the COLOUR LOCK in Rule #2) — a warm or yellowish room does not turn a red saree orange, and a dim room does not make a vivid colour muddy.
 
 ═══════════════════════════════════════════════════════════════════
 RULE #4 — PHOTOGRAPHIC QUALITY
 ═══════════════════════════════════════════════════════════════════
-Shot on 85mm portrait lens, soft ambient lighting matching the customer's environment. The result must be indistinguishable from a real, unretouched photograph. Render natural skin texture with pores and fine lines. The fabric must show realistic micro-wrinkles, natural drape weight, and material-appropriate light interaction. No beauty filters. No airbrushing.
+Shot on 85mm portrait lens, soft ambient lighting matching the customer's environment (brightness and direction only — the garment keeps its exact colours). The result must be indistinguishable from a real, unretouched photograph. Render natural skin texture with pores and fine lines. The fabric must show realistic micro-wrinkles, natural drape weight, and material-appropriate light interaction. No beauty filters. No airbrushing.
 
 ═══════════════════════════════════════════════════════════════════
 RULE #5 — ANATOMY & HAND PRESERVATION (ANTI-MUTATION BINDING)
 ═══════════════════════════════════════════════════════════════════
-CRITICAL: You are strictly forbidden from generating extra limbs, extra hands, or extra fingers. 
-- The person must have exactly two arms and two hands. 
+CRITICAL: You are strictly forbidden from generating extra limbs, extra hands, or extra fingers.
+- The customer must have exactly two arms and two hands, and so must every other person in the photo — never merge, add or remove anyone's limbs.
 - If the customer's hands are visible, they must remain perfectly preserved with exactly five fingers per hand. 
 - You MUST perfectly mask out and erase any hands belonging to the original garment model. 
 - Do NOT blend the garment model's hands into the customer's hands. 

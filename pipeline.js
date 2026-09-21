@@ -61,6 +61,15 @@ async function getGoogleAccessToken() {
 }
 
 /**
+ * JPEG_NOTE -- why every JPEG here is written with chromaSubsampling '4:4:4'.
+ *
+ * sharp's default is 4:2:0, which keeps colour at a QUARTER of the resolution of brightness.
+ * Invisible on skin and walls, but on a saree's thin zari borders and fine prints the
+ * saturated colours bleed into their neighbours, and a vivid border comes out duller than
+ * the fabric. These images feed the try-on and make up the final result, so they keep full
+ * colour detail. Quality 92 -> 95 for the same reason.
+ */
+/**
  * Download an image URL and preprocess to 768×1024 JPEG base64.
  * Uses sharp: resize to contain within canvas, white background, flatten alpha.
  */
@@ -81,7 +90,7 @@ async function imageUrlToBase64(imageUrl) {
       background: { r: 255, g: 255, b: 255, alpha: 1 },
     })
     .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .jpeg({ quality: 92 })
+    .jpeg({ quality: 95, chromaSubsampling: '4:4:4' }) // full colour detail -- see JPEG_NOTE
     .toBuffer();
 
   return processed.toString('base64');
@@ -126,7 +135,7 @@ async function combineImageUrlsToBase64(urls) {
   })
     .composite(resizedBuffers)
     .flatten({ background: { r: 255, g: 255, b: 255 } })
-    .jpeg({ quality: 92 })
+    .jpeg({ quality: 95, chromaSubsampling: '4:4:4' }) // full colour detail -- see JPEG_NOTE
     .toBuffer();
 
   return processed.toString('base64');
@@ -215,32 +224,39 @@ async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category
   const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent";
 
   // Augmented resize: tiny 1% crop + imperceptible brightness shift breaks Gemini's
-  // AI-generated image detection fingerprint that can cause IMAGE_OTHER safety blocks
-  const augmentedResize = async (base64Str) => {
+  // AI-generated image detection fingerprint that can cause IMAGE_OTHER safety blocks.
+  //
+  // `keepColour` is for anything whose colour IS the product -- the garment, the blouse. The
+  // brightness/saturation nudge used to run on those too, so every flatlay reached the model
+  // 2% brighter and 2% LESS saturated than the real fabric, and the model faithfully copied
+  // the washed-out version. Vibrant reds, magentas, emeralds and royal blues showed it most.
+  // The crop and resize alone still change the image's fingerprint, so the product keeps its
+  // true colour and only the customer photo gets the nudge.
+  const augmentedResize = async (base64Str, { keepColour = false } = {}) => {
     const inputBuffer = Buffer.from(base64Str, 'base64');
     const meta = await sharp(inputBuffer).metadata();
     const cropPx = Math.max(1, Math.floor(Math.min(meta.width || 512, meta.height || 512) * 0.01));
-    const outputBuffer = await sharp(inputBuffer)
+    let pipeline = sharp(inputBuffer)
       .extract({
         left: cropPx,
         top: cropPx,
         width: (meta.width || 512) - cropPx * 2,
         height: (meta.height || 512) - cropPx * 2,
       })
-      .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-      .modulate({ brightness: 1.02, saturation: 0.98 })
-      .png()
-      .toBuffer();
+      .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true });
+    if (!keepColour) pipeline = pipeline.modulate({ brightness: 1.02, saturation: 0.98 });
+    const outputBuffer = await pipeline.png().toBuffer();
     return outputBuffer.toString('base64');
   };
 
   console.log('[Vertex Try-On] Pre-processing images...');
-  
+
   const garmentB64s = Array.isArray(garmentB64) ? garmentB64 : [garmentB64];
-  const garmentProcesseds = await Promise.all(garmentB64s.map(b64 => augmentedResize(b64)));
-  
+  const garmentProcesseds = await Promise.all(garmentB64s.map(b64 => augmentedResize(b64, { keepColour: true })));
+
   const personProcessed = await augmentedResize(personB64);
-  const blouseProcessed = blouseB64 ? await augmentedResize(blouseB64) : null;
+  const blouseProcessed = blouseB64 ? await augmentedResize(blouseB64, { keepColour: true }) : null;
+  // The dupatta style image is a shape reference only (its colour is ignored), so it keeps the nudge.
   const dupattaStyleProcessed = dupattaStyleB64 ? await augmentedResize(dupattaStyleB64) : null;
 
   const isSaree = (!category || category.toUpperCase() === 'SAREE');
@@ -275,7 +291,8 @@ async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category
   }
 
   parts.push(
-    { text: "CUSTOMER — The person to dress (preserve their exact identity, skin tone, hands, body, hair, pose, and environment):" },
+    // May be a group photo -- Rule #0 of the prompt says who to dress; everyone else is unchanged.
+    { text: "CUSTOMER PHOTO — dress exactly one person as Rule #0 describes (in a group photo, the most prominent woman); preserve every person's exact identity, skin tone, hands, body, hair, pose, and the environment, and leave everyone else's clothes untouched:" },
     { inline_data: { mime_type: "image/png", data: personProcessed } }
   );
 
@@ -796,7 +813,7 @@ async function applyWatermarkToBase64(resultB64) {
           gravity: 'center',
         }
       ])
-      .jpeg({ quality: 92 })
+      .jpeg({ quality: 95, chromaSubsampling: '4:4:4' }) // full colour detail -- see JPEG_NOTE
       .toBuffer();
 
     return watermarkedBuffer.toString('base64');
