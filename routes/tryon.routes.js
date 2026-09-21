@@ -11,6 +11,7 @@ const prisma = require('../lib/prisma');
 const upload = require('../lib/upload');
 const sharp = require('sharp');
 const { reportUsageToGateway } = require('../services/gatewayTracker');
+const { chargeCredit } = require('../services/credits');
 
 const router = express.Router();
 const DEFAULT_VENDOR_ID = 'feb21067-a3ee-4020-b388-16d3a37a29ce';
@@ -150,6 +151,8 @@ router.post('/api/tryon/generate-front-view', authenticateVendor, async (req, re
 router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) => {
   let ownerVendorId = req.userRole === 'vendor' ? req.vendorId : null;
   const startTime = Date.now();
+  // Outside the try so the catch can give it back. See services/credits.
+  let charge = null;
   try {
     const {
       mode = 'with_garment',
@@ -184,52 +187,16 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
        ownerVendorId = req.body.vendorId;
     }
 
-    // --- CREDIT LIMIT LOGIC ---
-    if (req.userRole === 'vendor') {
-      const vendor = await prisma.vendor.findUnique({ where: { id: req.vendorId } });
-      if (!vendor) {
-        return res.status(401).json({ error: 'Vendor not found.' });
-      }
-      if (!vendor.isUnlimited) {
-        const isCustomerTryon = !!req.body.parent_generation_id;
-        
-        if (isCustomerTryon) {
-          if (vendor.userTryonCredits <= 0) {
-            return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your 10 free user-side try-ons. Please Contact Us.' });
-          }
-          await prisma.vendor.update({
-            where: { id: req.vendorId },
-            data: { userTryonCredits: vendor.userTryonCredits - 1 }
-          });
-        } else {
-          if (vendor.drapeCredits <= 0) {
-            return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your 10 free drapes. Please Contact Us.' });
-          }
-          await prisma.vendor.update({
-            where: { id: req.vendorId },
-            data: { drapeCredits: vendor.drapeCredits - 1 }
-          });
-        }
-      }
-
-    } else if (req.userRole === 'guest') {
-      const ip = req.ip || req.connection.remoteAddress || 'unknown';
-      let guest = await prisma.guestLimit.findUnique({ where: { ipAddress: ip } });
-      if (!guest) {
-        guest = await prisma.guestLimit.create({ data: { ipAddress: ip, tryonCount: 0 } });
-      }
-      
-      if (guest.tryonCount >= 10) {
-        return res.status(401).json({ error: 'GUEST_LIMIT_REACHED', message: 'Login as Vendor for more credits.' });
-      }
-      
-      // Increment guest tryon count
-      await prisma.guestLimit.update({
-        where: { id: guest.id },
-        data: { tryonCount: guest.tryonCount + 1 }
-      });
+    // --- CREDIT LIMIT LOGIC --- (shared with change-background and modify-outfit)
+    const isCustomerTryon = !!req.body.parent_generation_id;
+    charge = await chargeCredit(req, isCustomerTryon
+      ? { bucket: 'userTryonCredits', outOfCreditsMessage: 'You have used your 10 free user-side try-ons. Please Contact Us.' }
+      : { bucket: 'drapeCredits', outOfCreditsMessage: 'You have used your 10 free drapes. Please Contact Us.' });
+    if (!charge.ok) {
+      const refused = charge;
+      charge = null;
+      return res.status(refused.status).json(refused.body);
     }
-    // Note: If req.userRole === 'vendor', they bypass this and get unlimited.
     // --- END CREDIT LIMIT LOGIC ---
 
     let primaryGarmentUrl = garment_image_url;
@@ -354,6 +321,11 @@ router.post('/api/tryon/generate', optionalAuthenticateUser, async (req, res) =>
 
   } catch (err) {
     console.error('[Generate] Error:', err.message);
+    // Give the credit back -- but only if the caller never got a result. headersSent guards
+    // against something throwing AFTER res.json(), which would otherwise refund a try-on that
+    // was delivered, and then try to send a second response.
+    if (res.headersSent) return;
+    if (charge) await charge.refund();
     const latencyMs = typeof startTime !== 'undefined' ? Date.now() - startTime : 0;
     reportUsageToGateway(ownerVendorId || null, 'POST', '/api/tryon/generate', 500, latencyMs);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
@@ -626,6 +598,7 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
 
   const startTime = Date.now();
   let ownerVendorId = req.userRole === 'vendor' ? req.vendorId : null;
+  let charge = null;
   try {
     if (!ownerVendorId && generationId) {
       const parentAsset = await prisma.asset.findUnique({ where: { id: generationId } });
@@ -634,26 +607,16 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
       }
     }
 
-    // --- CREDIT LIMIT LOGIC ---
-    if (req.userRole === 'vendor') {
-      const vendor = await prisma.vendor.findUnique({ where: { id: req.vendorId } });
-      if (!vendor) return res.status(401).json({ error: 'Vendor not found.' });
-      if (!vendor.isUnlimited) {
-        if (vendor.bgChangeCredits <= 0) {
-          return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your 10 free background changes. Please Contact Us.' });
-        }
-        await prisma.vendor.update({ where: { id: req.vendorId }, data: { bgChangeCredits: vendor.bgChangeCredits - 1 } });
-      }
-    } else if (req.userRole === 'guest') {
-      const ip = req.ip || req.connection.remoteAddress || 'unknown';
-      let guest = await prisma.guestLimit.findUnique({ where: { ipAddress: ip } });
-      if (!guest) guest = await prisma.guestLimit.create({ data: { ipAddress: ip, tryonCount: 0 } });
-      if (guest.tryonCount >= 10) {
-        return res.status(401).json({ error: 'GUEST_LIMIT_REACHED', message: 'Login as Vendor for more credits.' });
-      }
-      await prisma.guestLimit.update({ where: { id: guest.id }, data: { tryonCount: guest.tryonCount + 1 } });
+    // --- CREDIT LIMIT LOGIC --- (shared; see services/credits)
+    charge = await chargeCredit(req, {
+      bucket: 'bgChangeCredits',
+      outOfCreditsMessage: 'You have used your 10 free background changes. Please Contact Us.'
+    });
+    if (!charge.ok) {
+      const refused = charge;
+      charge = null;
+      return res.status(refused.status).json(refused.body);
     }
-    // --- END CREDIT LIMIT LOGIC ---
     // --- END CREDIT LIMIT LOGIC ---
 
     console.log(`[ChangeBackground] Starting for ${generationId || 'unknown'} → ${bg.name}`);
@@ -712,6 +675,9 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
     res.json({ success: true, url: newImageUrl, asset_id: newAsset?.id, generation_id: newAsset?.id });
   } catch (err) {
     console.error('[ChangeBackground] Error:', err.message);
+    // Refund only if the caller got nothing; see the note in /generate.
+    if (res.headersSent) return;
+    if (charge) await charge.refund();
     const latencyMs = typeof startTime !== 'undefined' ? Date.now() - startTime : 0;
     reportUsageToGateway(ownerVendorId || null, 'POST', '/api/tryon/change-background', 500, latencyMs);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
@@ -737,6 +703,7 @@ router.post('/api/tryon/modify-outfit', optionalAuthenticateUser, async (req, re
 
   const startTime = Date.now();
   let ownerVendorId = req.userRole === 'vendor' ? req.vendorId : null;
+  let charge = null;
   try {
     if (!ownerVendorId && generationId) {
       const parentAsset = await prisma.asset.findUnique({ where: { id: generationId } });
@@ -745,24 +712,15 @@ router.post('/api/tryon/modify-outfit', optionalAuthenticateUser, async (req, re
       }
     }
 
-    // --- CREDIT LIMIT LOGIC ---
-    if (req.userRole === 'vendor') {
-      const vendor = await prisma.vendor.findUnique({ where: { id: req.vendorId } });
-      if (!vendor) return res.status(401).json({ error: 'Vendor not found.' });
-      if (!vendor.isUnlimited) {
-        if (vendor.blouseChangeCredits <= 0) {
-          return res.status(403).json({ error: 'INSUFFICIENT_CREDITS', message: 'You have used your 10 free blouse/neck changes. Please Contact Us.' });
-        }
-        await prisma.vendor.update({ where: { id: req.vendorId }, data: { blouseChangeCredits: vendor.blouseChangeCredits - 1 } });
-      }
-    } else if (req.userRole === 'guest') {
-      const ip = req.ip || req.connection.remoteAddress || 'unknown';
-      let guest = await prisma.guestLimit.findUnique({ where: { ipAddress: ip } });
-      if (!guest) guest = await prisma.guestLimit.create({ data: { ipAddress: ip, tryonCount: 0 } });
-      if (guest.tryonCount >= 10) {
-        return res.status(401).json({ error: 'GUEST_LIMIT_REACHED', message: 'Login as Vendor for more credits.' });
-      }
-      await prisma.guestLimit.update({ where: { id: guest.id }, data: { tryonCount: guest.tryonCount + 1 } });
+    // --- CREDIT LIMIT LOGIC --- (shared; see services/credits)
+    charge = await chargeCredit(req, {
+      bucket: 'blouseChangeCredits',
+      outOfCreditsMessage: 'You have used your 10 free blouse/neck changes. Please Contact Us.'
+    });
+    if (!charge.ok) {
+      const refused = charge;
+      charge = null;
+      return res.status(refused.status).json(refused.body);
     }
     // --- END CREDIT LIMIT LOGIC ---
 
@@ -817,6 +775,9 @@ router.post('/api/tryon/modify-outfit', optionalAuthenticateUser, async (req, re
     res.json({ success: true, resultImageUrl: newImageUrl, asset_id: newAsset?.id, generation_id: newAsset?.id });
   } catch (err) {
     console.error('[ModifyOutfit] Error:', err.message);
+    // Refund only if the caller got nothing; see the note in /generate.
+    if (res.headersSent) return;
+    if (charge) await charge.refund();
     const latencyMs = typeof startTime !== 'undefined' ? Date.now() - startTime : 0;
     reportUsageToGateway(ownerVendorId || null, 'POST', '/api/tryon/modify-outfit', 500, latencyMs);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });

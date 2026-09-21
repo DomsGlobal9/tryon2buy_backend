@@ -84,6 +84,26 @@ function optionalAuthenticateUser(req, res, next) {
       req.userRole = 'guest';
     }
   } catch (err) {
+    /**
+     * An expired login is refused, not quietly downgraded to a guest.
+     *
+     * This used to fall through to guest for every failure. For a vendor whose seven-day
+     * login had lapsed that meant their try-ons were silently charged to the free guest
+     * allowance of whatever network they were on, and after ten of them they were told
+     * "Free Trial Ended -- Login as Vendor" instead of "please log in again".
+     *
+     * Only TokenExpiredError is refused, and that is deliberate. jsonwebtoken checks the
+     * signature before the expiry, so this error can only come from a token WE signed. A
+     * token signed by some other system, or a malformed one, fails earlier with
+     * JsonWebTokenError and keeps the old guest behaviour -- no integration that happens to
+     * send its own Authorization header can start failing because of this.
+     */
+    if (err && err.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        error: 'SESSION_EXPIRED',
+        message: 'Your session has expired. Please log in again.'
+      });
+    }
     req.userRole = 'guest';
   }
   next();
