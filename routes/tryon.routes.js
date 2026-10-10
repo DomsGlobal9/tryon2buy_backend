@@ -1,5 +1,5 @@
 const express = require('express');
-const { uploadBufferToSupabase } = require('../storage');
+const { uploadBufferToSupabase, uploadBufferToPath, BUCKET } = require('../storage');
 const { 
   generateFrontView, 
   runTryOn, 
@@ -93,6 +93,50 @@ router.post('/api/tryon/upload', anonymousUploadLimiter, upload.single('image'),
     // Anything left here is ours -- storage refused, credentials wrong. Never echoed back.
     console.error('[Upload] Error:', err.message);
     res.status(500).json({ error: 'Could not save that image. Please try again.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Thumbnail: GET /api/tryon/thumb?src=<public url in our bucket>&w=320|480|800
+//
+// Shop and gallery cards were loading 1792px originals (~500-700 KB) into 350px boxes.
+// Supabase's on-the-fly resizing needs a paid plan (it answers 403 here), so the first request
+// makes the small copy with sharp and stores it at thumbs/w<w>/<original path>; every request
+// after that is a redirect to that stored file. Only files already in our own bucket, at three
+// fixed widths, so nobody can make this fetch or store anything else.
+// ─────────────────────────────────────────────────────────────────────────────
+const THUMB_WIDTHS = [320, 480, 800];
+router.get('/api/tryon/thumb', async (req, res) => {
+  const src = String(req.query.src || '');
+  const w = Number(req.query.w);
+  const publicBase = `${process.env.SUPABASE_URL}/storage/v1/object/public/${BUCKET}/`;
+  if (!process.env.SUPABASE_URL || !src.startsWith(publicBase) || !THUMB_WIDTHS.includes(w)) {
+    return res.status(400).json({ error: 'Not an image we can resize.' });
+  }
+  const path = decodeURIComponent(src.slice(publicBase.length).split('?')[0]);
+  if (!path || path.includes('..') || path.startsWith('thumbs/')) {
+    return res.status(400).json({ error: 'Not an image we can resize.' });
+  }
+  const thumbPath = `thumbs/w${w}/${path.replace(/\.[a-z]+$/i, '')}.jpg`;
+  const thumbUrl = publicBase + thumbPath.split('/').map(encodeURIComponent).join('/');
+  const redirect = () => {
+    res.set('Cache-Control', 'public, max-age=86400');
+    return res.redirect(302, thumbUrl);
+  };
+  try {
+    const existing = await fetch(thumbUrl, { method: 'HEAD' });
+    if (existing.ok) return redirect();
+
+    const original = await fetch(src);
+    if (!original.ok) return res.redirect(302, src);
+    const buf = Buffer.from(await original.arrayBuffer());
+    const small = await sharp(buf).rotate().resize({ width: w, withoutEnlargement: true }).jpeg({ quality: 78 }).toBuffer();
+    await uploadBufferToPath(small, thumbPath, 'jpg');
+    return redirect();
+  } catch (err) {
+    // A thumbnail is an optimisation: on any failure, the original still shows.
+    console.warn('[Thumb] falling back to original:', err.message);
+    return res.redirect(302, src);
   }
 });
 
@@ -508,11 +552,14 @@ router.get('/api/tryon/generations/:id', async (req, res) => {
       return res.status(404).json({ error: 'Generation not found.' });
     }
 
+    const product = await prisma.product.findFirst({ where: { primaryAssetId: asset.id }, select: { title: true } });
+
     // Public and unauthenticated (it backs the shareable /tryon/:id link), so it returns only
     // what that page needs. humanImageUrl and customerId used to be here: the person's own
     // photo and who they are, to anyone holding the id.
     const generation = {
       id: asset.id,
+      title: product?.title || null,
       vendorId: asset.vendorId,
       garmentId: asset.garmentId,
       mode: asset.metadata?.mode || 'with_garment',
@@ -593,10 +640,17 @@ router.get('/api/tryon/vendor/:vendorId/gallery', async (req, res) => {
 
     // Filter to ONLY show Phase 1 (Vendor Catalog Drapes)
     // Do not show Phase 2 (Customer Try-on selfies) in the public gallery
-    const generations = assets
-      .filter(a => a.metadata?.phase === 1 || !a.metadata?.phase)
+    const drapes = assets.filter(a => a.metadata?.phase === 1 || !a.metadata?.phase);
+    // Catalogue products name their drape; without this every shop card just said "SAREE".
+    const products = await prisma.product.findMany({
+      where: { primaryAssetId: { in: drapes.map(a => a.id) } },
+      select: { primaryAssetId: true, title: true },
+    });
+    const titleOf = new Map(products.map(p => [p.primaryAssetId, p.title]));
+    const generations = drapes
       .map(a => ({
         id: a.id,
+        title: titleOf.get(a.id) || null,
         category: a.metadata?.category || null,
         resultImageUrl: a.imageUrl,
         garmentImageUrl: a.metadata?.garmentImageUrl || '',

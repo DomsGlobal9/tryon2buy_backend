@@ -22,8 +22,11 @@ const BUCKET = process.env.SUPABASE_STORAGE_BUCKET || 'tryon-fits';
  * @returns {Promise<string>} Public URL of the uploaded file
  */
 async function uploadBufferToSupabase(buffer, folder, ext = 'jpg') {
-  const filePath = `${folder}/${uuidv4()}.${ext}`;
+  return uploadBufferToPath(buffer, `${folder}/${uuidv4()}.${ext}`, ext);
+}
 
+/** Upload to an exact path (overwriting), for files whose name must be predictable. */
+async function uploadBufferToPath(buffer, filePath, ext = 'jpg') {
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .upload(filePath, buffer, {
@@ -32,7 +35,7 @@ async function uploadBufferToSupabase(buffer, folder, ext = 'jpg') {
     });
 
   if (error) {
-    throw new Error(`Supabase upload failed (${folder}): ${error.message}`);
+    throw new Error(`Supabase upload failed (${filePath}): ${error.message}`);
   }
 
   const { data: publicData } = supabase.storage
@@ -54,4 +57,4 @@ async function uploadBase64ToSupabase(base64Str, folder) {
   return uploadBufferToSupabase(buffer, folder, 'jpg');
 }
 
-module.exports = { uploadBufferToSupabase, uploadBase64ToSupabase };
+module.exports = { uploadBufferToSupabase, uploadBufferToPath, uploadBase64ToSupabase, BUCKET };
