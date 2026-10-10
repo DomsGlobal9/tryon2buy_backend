@@ -6,10 +6,12 @@ const {
   changeBackgroundWithGemini, 
   modifyOutfitWithGemini 
 } = require('../pipeline');
-const { authenticateVendor, authenticateCustomer, authenticateUser, optionalAuthenticateUser } = require('../middleware/auth');
+const { authenticateVendor, authenticateCustomer, authenticateUser, optionalAuthenticateUser, JWT_SECRET } = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 const upload = require('../lib/upload');
 const sharp = require('sharp');
+const rateLimit = require('express-rate-limit');
 const { reportUsageToGateway } = require('../services/gatewayTracker');
 const { chargeCredit } = require('../services/credits');
 
@@ -22,14 +24,35 @@ const DEFAULT_VENDOR_ID = 'feb21067-a3ee-4020-b388-16d3a37a29ce';
 //    Body: multipart/form-data with field "image"
 //    Query: ?folder=garments|human-images (default: garments)
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/api/tryon/upload', upload.single('image'), async (req, res) => {
+// Uploads stay open to shoppers and guests (they have no login), so a signed-out caller is
+// capped per IP instead. A verified vendor is not counted: bulk catalogue uploads are theirs.
+const anonymousUploadLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 40,
+  // Only decides whether to count the request; never refuses it, so a stale login uploads as before.
+  skip: (req) => {
+    try {
+      const token = (req.headers.authorization || '').replace(/^Bearer /, '');
+      return ['vendor', 'merchant', 'b2b_client'].includes(jwt.verify(token, JWT_SECRET).role);
+    } catch {
+      return false;
+    }
+  },
+  message: { error: 'Too many photos in a short time. Please wait a few minutes and try again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post('/api/tryon/upload', anonymousUploadLimiter, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided. Use field name "image".' });
     }
 
     const folder = req.query.folder || 'garments';
-    const allowedFolders = ['garments', 'user-uploads', 'human-images', 'front-views', 'vendor-drapes', 'results'];
+    // Only the folders the app uploads into. front-views, vendor-drapes and results are written
+    // by the server itself; letting anyone drop files there made them look like our output.
+    const allowedFolders = ['garments', 'user-uploads', 'human-images'];
     if (!allowedFolders.includes(folder)) {
       return res.status(400).json({ error: `Invalid folder. Use: ${allowedFolders.join(', ')}` });
     }
@@ -485,17 +508,20 @@ router.get('/api/tryon/generations/:id', async (req, res) => {
       return res.status(404).json({ error: 'Generation not found.' });
     }
 
+    // Public and unauthenticated (it backs the shareable /tryon/:id link), so it returns only
+    // what that page needs. humanImageUrl and customerId used to be here: the person's own
+    // photo and who they are, to anyone holding the id.
     const generation = {
       id: asset.id,
       vendorId: asset.vendorId,
-      customerId: asset.customerId,
       garmentId: asset.garmentId,
       mode: asset.metadata?.mode || 'with_garment',
       phase: asset.metadata?.phase || 1,
       category: asset.metadata?.category || null,
       garmentImageUrl: asset.metadata?.garmentImageUrl || '',
-      humanImageUrl: asset.metadata?.humanImageUrl || '',
-      resultImageUrl: asset.imageUrl,
+      // Until COMPLETED, imageUrl still holds the placeholder the row was created with -- the
+      // customer's own photo (see generation-status above).
+      resultImageUrl: asset.status === 'COMPLETED' ? asset.imageUrl : null,
       status: asset.status,
       createdAt: asset.createdAt,
       garment: asset.garment
@@ -549,6 +575,10 @@ router.get('/api/tryon/vendor/:vendorId/gallery', async (req, res) => {
     if (vendorId === 'demo') {
       if (masterVendor) vendorIds.push(masterVendor.id);
     } else {
+      // A shop that does not exist is "not found", not an empty collection -- a mistyped or
+      // dead link otherwise looked like a real shop with nothing in it.
+      const vendor = await prisma.vendor.findUnique({ where: { id: String(vendorId) }, select: { id: true } });
+      if (!vendor) return res.status(404).json({ error: 'Collection not found.' });
       vendorIds.push(vendorId);
     }
     const assets = await prisma.asset.findMany({
@@ -972,7 +1002,9 @@ router.post('/api/tryon/catalog/generate', authenticateVendor, async (req, res) 
           style_2: 'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/lehanga/lehanga4_default.png'
         }
       ],
-      KURTIS: [
+      // KURTHI, not KURTIS: the key must match the category the app sends, or the lookup below
+      // misses and every kurti is dressed on a saree model.
+      KURTHI: [
         'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/kurti/kurti1.jpg',
         'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/kurti/kurti2.jpg',
         'https://gsriztjnocjwgqkaxhhz.supabase.co/storage/v1/object/public/tryon-fits/default%20models/kurti/kurti3.jpg',
