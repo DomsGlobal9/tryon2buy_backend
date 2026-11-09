@@ -34,6 +34,16 @@ const DEFAULT_MODEL_URL =
 const OUTPUT_WIDTH = 768;
 const OUTPUT_HEIGHT = 1024;
 
+// The image model and picture size, in one place for try-on, background change and blouse change.
+// Render can change either without a code change. Nano Banana 2.1 won a side-by-side against
+// gemini-3.1-flash-image on 9 Nov (faces kept, truer colours). 2K: Google's default 1K
+// (896x1200) left too few pixels for zari and embroidery, worst on background changes where
+// the person stands further back. On 2.1 a 2K picture still costs less than the old 1K one.
+const IMAGE_MODEL = process.env.TRYON_IMAGE_MODEL || 'gemini-nano-banana-2.1';
+const IMAGE_SIZE = process.env.TRYON_IMAGE_SIZE || '2K';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent`;
+const IMAGE_GENERATION_CONFIG = { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: IMAGE_SIZE } };
+
 // Mock result URLs for when AI credentials are unavailable
 const MOCK_RESULTS = {
   front_view: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=768&h=1024&q=80',
@@ -221,8 +231,6 @@ async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set in .env');
 
-  const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent";
-
   // Augmented resize: tiny 1% crop + imperceptible brightness shift breaks Gemini's
   // AI-generated image detection fingerprint that can cause IMAGE_OTHER safety blocks.
   //
@@ -298,6 +306,7 @@ async function callGeminiTryOn(garmentB64, personB64, blouseB64 = null, category
 
   const payload = {
     contents: [{ parts }],
+    generationConfig: IMAGE_GENERATION_CONFIG,
   };
 
   const MAX_RETRIES = 5;
@@ -366,8 +375,6 @@ async function changeBackgroundWithGemini(personBase64, targetBgBase64, prompt) 
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set in .env');
 
-  const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent";
-
   // ── STEP 1: Prepare Images (Use PNG to preserve colors perfectly) ──────
   console.log('[Background Swap] Preparing images for Gemini...');
   const personBuffer = Buffer.from(personBase64, 'base64');
@@ -427,6 +434,7 @@ async function changeBackgroundWithGemini(personBase64, targetBgBase64, prompt) 
         ],
       },
     ],
+    generationConfig: IMAGE_GENERATION_CONFIG,
   };
 
   const MAX_RETRIES = 3;
@@ -621,6 +629,7 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
 
     let resultImageUrl = null;
     if (!skipUpload) {
+      const cleanB64 = resultB64;
       if (applyWatermark) {
         // Process watermark (will skip if vendor has premium config)
         const { processWatermark } = require('./services/watermarkManager');
@@ -629,6 +638,8 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
 
       console.log(`[Pipeline] Uploading try-on result to Supabase folder: ${targetFolder}...`);
       resultImageUrl = await uploadBase64ToSupabase(resultB64, targetFolder);
+      // Background/blouse changes start from this, not from the watermarked picture.
+      if (resultB64 !== cleanB64) await require('./services/cleanCopy').saveCleanTwin(resultImageUrl, cleanB64);
       console.log(`[Pipeline] ✅ Try-on result ready: ${resultImageUrl}`);
     } else {
       console.log(`[Pipeline] ✅ Try-on result ready: Base64 string generated (Supabase upload skipped)`);
@@ -650,8 +661,6 @@ async function runTryOn(garmentPayload, humanImageUrl, category = 'SAREE', targe
 async function modifyOutfitWithGemini(personBase64, prompt) {
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set in .env');
-
-  const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent";
 
   const resizeToPngBase64 = async (base64Str, maxDim = 2048) => {
     const inputBuffer = Buffer.from(base64Str, 'base64');
@@ -717,7 +726,7 @@ async function modifyOutfitWithGemini(personBase64, prompt) {
   `;
   }
 
-  // Match the working Dvyb_Web_New payload: NO generationConfig, NO safetySettings
+  // No safetySettings (as in the working Dvyb_Web_New payload); only the shared size setting.
   const payload = {
     contents: [
       {
@@ -732,6 +741,7 @@ async function modifyOutfitWithGemini(personBase64, prompt) {
         ],
       },
     ],
+    generationConfig: IMAGE_GENERATION_CONFIG,
   };
 
   const MAX_RETRIES = 5;

@@ -705,8 +705,9 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
 
     console.log(`[ChangeBackground] Starting for ${generationId || 'unknown'} → ${bg.name}`);
     
-    // 1. Download source image (person) to base64
-    const imgResponse = await fetch(imageUrl);
+    // 1. Download source image (person) to base64 -- its clean twin when there is one (services/cleanCopy)
+    const { saveCleanTwin, editSourceFor } = require('../services/cleanCopy');
+    const imgResponse = await fetch(await editSourceFor(imageUrl));
     if (!imgResponse.ok) throw new Error('Failed to download source image');
     const personBase64 = Buffer.from(await imgResponse.arrayBuffer()).toString('base64');
 
@@ -718,6 +719,7 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
     // 3. Call pipeline (prompt also resolved from prompts.js)
     const { changeBackgroundWithGemini } = require('../pipeline');
     let resultB64 = await changeBackgroundWithGemini(personBase64, targetBgBase64, bg.prompt);
+    const cleanB64 = resultB64;
 
     const { processWatermark } = require('../services/watermarkManager');
     resultB64 = await processWatermark(resultB64, ownerVendorId);
@@ -725,6 +727,7 @@ router.post('/api/tryon/change-background', optionalAuthenticateUser, async (req
     // 4. Upload to Supabase
     const { uploadBase64ToSupabase } = require('../storage');
     const newImageUrl = await uploadBase64ToSupabase(resultB64, 'results/background-swaps');
+    if (resultB64 !== cleanB64) await saveCleanTwin(newImageUrl, cleanB64);
 
     // 5. Save Asset and AssetRelation for true Asset Lineage tracking
     let newAsset = null;
@@ -810,14 +813,16 @@ router.post('/api/tryon/modify-outfit', optionalAuthenticateUser, async (req, re
 
     console.log(`[ModifyOutfit] Starting for ${generationId || 'unknown'} → ${mod.name}`);
     
-    // 1. Download source image to base64
-    const imgResponse = await fetch(imageUrl);
+    // 1. Download source image to base64 -- its clean twin when there is one (services/cleanCopy)
+    const { saveCleanTwin, editSourceFor } = require('../services/cleanCopy');
+    const imgResponse = await fetch(await editSourceFor(imageUrl));
     if (!imgResponse.ok) throw new Error('Failed to download source image');
     const personBase64 = Buffer.from(await imgResponse.arrayBuffer()).toString('base64');
 
     // 2. Call pipeline (prompt resolved from prompts.js)
     const { modifyOutfitWithGemini } = require('../pipeline');
     let resultB64 = await modifyOutfitWithGemini(personBase64, mod.prompt);
+    const cleanB64 = resultB64;
 
     const { processWatermark } = require('../services/watermarkManager');
     resultB64 = await processWatermark(resultB64, ownerVendorId);
@@ -825,6 +830,7 @@ router.post('/api/tryon/modify-outfit', optionalAuthenticateUser, async (req, re
     // 3. Upload to Supabase
     const { uploadBase64ToSupabase } = require('../storage');
     const newImageUrl = await uploadBase64ToSupabase(resultB64, 'results/outfit-edits');
+    if (resultB64 !== cleanB64) await saveCleanTwin(newImageUrl, cleanB64);
 
     // 4. Save Asset and AssetRelation for true Asset Lineage tracking
     let newAsset = null;
